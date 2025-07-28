@@ -1,4 +1,71 @@
-import streamlit as st
+else:  # Use case study data
+            st.info("📊 **Using Case Study Raw Data File**: This will load the actual HubSpot export from the GitHub repository with real customer data.")
+            
+            if st.button("🚀 Load Case Study Data", type="secondary"):
+                try:
+                    # Try to load the case study data file
+                    case_study_file_path = "raw_data.csv"
+                    
+                    # Check if file exists using the file system API if available
+                    try:
+                        # This will work if the file is available in the app's file system
+                        raw_df = pd.read_csv(case_study_file_path)
+                        file_source = "**Case Study Raw Data File** (raw_data.csv)"
+                        file_size = f"{raw_df.memory_usage(deep=True).sum() / 1024:.1f} KB"
+                        
+                        # EXPLICITLY store in session state immediately
+                        st.session_state.raw_data = raw_df
+                        
+                        # Explicitly show success and debug info
+                        st.success(f"✅ Successfully loaded case study data!")
+                        st.write(f"🔍 DEBUG: Loaded {len(raw_df)} rows, {len(raw_df.columns)} columns")
+                        st.write(f"🔍 DEBUG: Sample columns: {list(raw_df.columns[:5])}")
+                        st.write(f"🔍 DEBUG: Session state updated: {st.session_state.raw_data is not None}")
+                        
+                        # Force a rerun to refresh the page with the loaded data
+                        st.rerun()
+                        
+                    except FileNotFoundError:
+                        # Create sample data if file not available
+                        st.warning("⚠️ Case Study Raw Data File not found. Creating sample data for demonstration.")
+                        
+                        # Create sample HubSpot-style data
+                        sample_data = {
+                            'First Name': ['John', 'Jane', 'Bob', 'Alice', 'Mike'],
+                            'Last Name': ['Doe', 'Smith', 'Johnson', 'Williams', 'Brown'],
+                            'Email': ['john.doe@company1.com', 'jane.smith@company2.com', 'bob.johnson@company3.com', 'alice.williams@company4.com', 'mike.brown@company5.com'],
+                            'Mobile': ['+1-555-0101', '+1-555-0102', '+1-555-0103', '+1-555-0104', '+1-555-0105'],
+                            'Job Title': ['CEO', 'VP Sales', 'Director', 'Manager', 'Analyst'],
+                            'Company Name': ['Company One', 'Company Two', 'Company Three', 'Company Four', 'Company Five'],
+                            'Website': ['company1.com', 'https://www.company2.com/', 'company3.com', 'www.company4.com', 'https://company5.com'],
+                            'Personal Linkedin URL': ['https://linkedin.com/in/johndoe', 'https://linkedin.com/in/janesmith', '', 'https://linkedin.com/in/alicewilliams', ''],
+                            'Company Linkedin URL': ['https://linkedin.com/company/company1', '', 'https://linkedin.com/company/company3', '', 'https://linkedin.com/company/company5']
+                        }
+                        
+                        raw_df = pd.DataFrame(sample_data)
+                        file_source = "**Sample Data** (generated for demonstration)"
+                        file_size = f"{raw_df.memory_usage(deep=True).sum() / 1024:.1f} KB"
+                        
+                        # EXPLICITLY store in session state immediately
+                        st.session_state.raw_data = raw_df
+                        
+                        st.success(f"✅ Successfully created sample data for demonstration!")
+                        st.write(f"🔍 DEBUG: Created {len(raw_df)} rows, {len(raw_df.columns)} columns")
+                        st.write(f"🔍 DEBUG: Sample columns: {list(raw_df.columns)}")
+                        st.write(f"🔍 DEBUG: Session state updated: {st.session_state.raw_data is not None}")
+                        st.info("💡 **To use real case study data**: Place the 'raw_data.csv' file in the same directory as this application.")
+                        
+                        # Force a rerun to refresh the page with the loaded data
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error reading case study file: {str(e)}")
+                        st.write(f"🔍 DEBUG: File path attempted: {case_study_file_path}")
+                        return
+                        
+                except Exception as e:
+                    st.error(f"❌ Error loading case study data: {str(e)}")
+                    st.info("Please upload your own HubSpot CSV file instead.")
+                    returnimport streamlit as st
 import pandas as pd
 import numpy as np
 import re
@@ -1013,23 +1080,23 @@ def main():
         
         # Add contact owner field first
         mapping_data.append({
-            "HubSpot Field": "Contact Owner Email (entered above)",
+            "HubSpot Field": "👤 Contact Owner (User Input)",
             "→": "→",
             "Reevo Field": "contact_owner_id",
-            "Requirement": "Recommended",
-            "Available": "✅" if contact_owner else "❌",
-            "Sample Data": contact_owner if contact_owner else "No email entered",
+            "Requirement": "Optional",
+            "Available": "✅" if contact_owner else "➖",
+            "Sample Data": contact_owner if contact_owner else "Optional - enter above",
             "Records": f"All {len(raw_df)} records" if contact_owner else "Will be empty"
         })
         
         # Add account owner field
         mapping_data.append({
-            "HubSpot Field": "Account Owner Email (entered above)",
+            "HubSpot Field": "👤 Account Owner (User Input)",
             "→": "→", 
             "Reevo Field": "account_owner_id",
-            "Requirement": "Recommended",
-            "Available": "✅" if account_owner else "❌",
-            "Sample Data": account_owner if account_owner else "No email entered",
+            "Requirement": "Optional",
+            "Available": "✅" if account_owner else "➖",
+            "Sample Data": account_owner if account_owner else "Optional - enter above",
             "Records": f"All {len(raw_df)} records" if account_owner else "Will be empty"
         })
         
