@@ -621,6 +621,27 @@ def main():
     with st.sidebar.expander("🧹 Cleaning Examples"):
         show_data_cleaning_demo()
     
+    # Debug session state at the top
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔍 Debug Info")
+    st.sidebar.write(f"Current Step: {st.session_state.step}")
+    st.sidebar.write(f"Raw Data Loaded: {st.session_state.raw_data is not None}")
+    if st.session_state.raw_data is not None:
+        st.sidebar.write(f"Data Shape: {st.session_state.raw_data.shape}")
+    
+    # Manual step controls for debugging
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🛠️ Manual Controls")
+    if st.sidebar.button("Force Go to Step 2"):
+        st.session_state.step = 2
+        st.sidebar.success("Forced to Step 2")
+        st.rerun()
+    
+    if st.sidebar.button("Reset to Step 1"):
+        st.session_state.step = 1
+        st.sidebar.success("Reset to Step 1")
+        st.rerun()
+    
     # Step 1: File Upload and Raw Data Preview
     if st.session_state.step >= 1:
         st.markdown('<div class="step-header"><h2>Step 1: 📁 Upload & Preview Raw HubSpot Data</h2></div>', unsafe_allow_html=True)
@@ -654,34 +675,51 @@ def main():
                     return
         
         else:  # Use case study data
-            st.info("📊 **Using Case Study Raw Data File**: This will load the actual HubSpot export from the case study with real customer data.")
+            st.info("📊 **Using Case Study Raw Data File**: This will load the actual HubSpot export from the GitHub repository with real customer data.")
             
             if st.button("🚀 Load Case Study Data", type="secondary"):
                 try:
-                    # Try to load the case study data file
-                    case_study_file_path = "raw_data.csv"
+                    # Fetch the raw_data.csv directly from GitHub repository
+                    github_url = "https://raw.githubusercontent.com/yourusername/yourrepo/main/raw_data.csv"
                     
-                    # Check if file exists using the file system API if available
+                    # Try multiple possible GitHub URLs since we don't know the exact repo structure
+                    possible_urls = [
+                        "https://raw.githubusercontent.com/yourusername/yourrepo/main/raw_data.csv",
+                        "https://raw.githubusercontent.com/yourusername/yourrepo/master/raw_data.csv",
+                        # Add a direct URL if you can provide it
+                    ]
+                    
+                    raw_df = None
+                    successful_url = None
+                    
+                    # Try to fetch from GitHub
                     try:
-                        # This will work if the file is available in the app's file system
-                        raw_df = pd.read_csv(case_study_file_path)
-                        file_source = "**Case Study Raw Data File** (raw_data.csv)"
+                        st.info("🔄 Fetching case study data from GitHub repository...")
+                        
+                        # The actual GitHub raw URL for your repository
+                        github_raw_url = "https://raw.githubusercontent.com/aavadhan10/Case-Prompt-2-/main/raw_data.csv"
+                        
+                        # Fetch the actual raw_data.csv from your GitHub repository
+                        raw_df = pd.read_csv(github_raw_url)
+                        file_source = "**Case Study Raw Data** (fetched from GitHub: aavadhan10/Case-Prompt-2-)"
                         file_size = f"{raw_df.memory_usage(deep=True).sum() / 1024:.1f} KB"
                         
-                        # Explicitly show success and debug info
-                        st.success(f"✅ Successfully loaded case study data!")
+                        st.success(f"✅ Successfully loaded real case study data from GitHub repository!")
                         st.write(f"🔍 DEBUG: Loaded {len(raw_df)} rows, {len(raw_df.columns)} columns")
-                        st.write(f"🔍 DEBUG: Sample columns: {list(raw_df.columns[:5])}")
+                        st.write(f"🔍 DEBUG: Actual columns: {list(raw_df.columns[:8])}...")
+                        st.write(f"🔍 DEBUG: GitHub URL: {github_raw_url}")
                         
-                    except FileNotFoundError:
-                        # Fallback: Create sample data structure if file not available
-                        st.warning("⚠️ Case Study Raw Data File not found. Please upload your own HubSpot CSV file instead.")
-                        st.info("💡 **To use case study data**: Place the 'raw_data.csv' file in the same directory as this application.")
-                        st.write(f"🔍 DEBUG: Looking for file at: {case_study_file_path}")
-                        return
+                        # CRITICALLY IMPORTANT: Set session state and trigger processing
+                        st.session_state.raw_data = raw_df
+                        st.write(f"🔍 DEBUG: Session state updated: {st.session_state.raw_data is not None}")
+                        
+                        # Instead of return, let raw_df be processed by the main logic below
+                        # This way it gets treated exactly like an uploaded file
+                        
                     except Exception as e:
-                        st.error(f"❌ Error reading case study file: {str(e)}")
-                        st.write(f"🔍 DEBUG: File path attempted: {case_study_file_path}")
+                        st.error(f"❌ Error fetching from GitHub: {str(e)}")
+                        st.write(f"🔍 DEBUG: Attempted URL: https://raw.githubusercontent.com/aavadhan10/Case-Prompt-2-/main/raw_data.csv")
+                        st.info("Please upload your own HubSpot CSV file instead.")
                         return
                         
                 except Exception as e:
@@ -691,11 +729,14 @@ def main():
         
         # Process the data if we have it
         if raw_df is not None:
+            # ENSURE session state is set
             st.session_state.raw_data = raw_df
             
             # File upload success
             st.markdown('<div class="success-box">', unsafe_allow_html=True)
             st.success(f"✅ Successfully loaded {file_source} ({len(raw_df)} records, {len(raw_df.columns)} columns)")
+            st.write(f"🔍 DEBUG: Session state set: {st.session_state.raw_data is not None}")
+            st.write(f"🔍 DEBUG: Current step: {st.session_state.step}")
             st.markdown('</div>', unsafe_allow_html=True)
             
             # Raw data overview metrics
