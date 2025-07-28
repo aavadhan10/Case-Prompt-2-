@@ -559,198 +559,188 @@ def main():
             st.markdown('<div class="success-box">', unsafe_allow_html=True)
             st.success(f"✅ Successfully loaded {file_source} ({len(raw_df)} records, {len(raw_df.columns)} columns)")
             st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Raw data overview metrics
+            st.subheader("📊 File Overview")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Records", len(raw_df))
+            with col2:
+                st.metric("Total Columns", len(raw_df.columns))
+            with col3:
+                memory_usage = raw_df.memory_usage(deep=True).sum() / 1024
+                st.metric("Memory Usage", f"{memory_usage:.1f} KB")
+            with col4:
+                st.metric("File Size", file_size)
+            
+            # Complete Raw Data Preview Section
+            st.markdown('<div class="raw-data-section">', unsafe_allow_html=True)
+            st.subheader("🔍 Complete Raw Data Preview")
+            st.write(f"**Full view of your uploaded file** - All {len(raw_df)} records with {len(raw_df.columns)} columns:")
+            
+            # Show complete raw data with scrolling
+            st.dataframe(
+                raw_df, 
+                use_container_width=True,
+                height=500,  # Scrollable height
+                hide_index=False  # Show row numbers
+            )
+            
+            # Column information
+            st.subheader("📋 Column Information")
+            st.write("**All available columns in your HubSpot export:**")
+            
+            # Create columns info table
+            col_info_data = []
+            for i, col_name in enumerate(raw_df.columns, 1):
+                non_null_count = raw_df[col_name].notna().sum()
+                null_count = len(raw_df) - non_null_count
+                data_type = str(raw_df[col_name].dtype)
                 
-                # Raw data overview metrics
-                st.subheader("📊 File Overview")
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Total Records", len(raw_df))
-                with col2:
-                    st.metric("Total Columns", len(raw_df.columns))
-                with col3:
-                    memory_usage = raw_df.memory_usage(deep=True).sum() / 1024
-                    st.metric("Memory Usage", f"{memory_usage:.1f} KB")
-                with col4:
-                    st.metric("File Size", file_size)
+                # Get sample non-null values
+                sample_values = raw_df[col_name].dropna().head(2).tolist()
+                sample_str = " | ".join([str(x)[:30] + "..." if len(str(x)) > 30 else str(x) for x in sample_values])
+                if not sample_str:
+                    sample_str = "All null values"
                 
-                # Complete Raw Data Preview Section
-                st.markdown('<div class="raw-data-section">', unsafe_allow_html=True)
-                st.subheader("🔍 Complete Raw Data Preview")
-                st.write(f"**Full view of your uploaded file** - All {len(raw_df)} records with {len(raw_df.columns)} columns:")
-                
-                # Show complete raw data with scrolling
-                st.dataframe(
-                    raw_df, 
-                    use_container_width=True,
-                    height=500,  # Scrollable height
-                    hide_index=False  # Show row numbers
-                )
-                
-                # Column information
-                st.subheader("📋 Column Information")
-                st.write("**All available columns in your HubSpot export:**")
-                
-                # Create columns info table
-                col_info_data = []
-                for i, col_name in enumerate(raw_df.columns, 1):
-                    non_null_count = raw_df[col_name].notna().sum()
-                    null_count = len(raw_df) - non_null_count
-                    data_type = str(raw_df[col_name].dtype)
+                col_info_data.append({
+                    "#": i,
+                    "Column Name": col_name,
+                    "Data Type": data_type,
+                    "Non-null": f"{non_null_count}/{len(raw_df)}",
+                    "Fill Rate": f"{(non_null_count/len(raw_df)*100):.1f}%",
+                    "Sample Values": sample_str
+                })
+            
+            col_info_df = pd.DataFrame(col_info_data)
+            st.dataframe(col_info_df, use_container_width=True, hide_index=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Key fields analysis
+            st.subheader("🎯 Key Fields Analysis")
+            st.write("**Analysis of fields that will be used for Reevo import:**")
+            
+            # Analyze key fields for import
+            key_fields = list(transformer.hubspot_to_reevo_mapping.keys()) + transformer.phone_fields
+            
+            field_analysis_data = []
+            for field in key_fields:
+                if field in raw_df.columns:
+                    filled_count = raw_df[field].notna().sum()
+                    empty_count = len(raw_df) - filled_count
+                    fill_rate = (filled_count / len(raw_df)) * 100
                     
-                    # Get sample non-null values
-                    sample_values = raw_df[col_name].dropna().head(2).tolist()
-                    sample_str = " | ".join([str(x)[:30] + "..." if len(str(x)) > 30 else str(x) for x in sample_values])
-                    if not sample_str:
-                        sample_str = "All null values"
+                    # Sample data
+                    samples = raw_df[field].dropna().head(3).tolist()
+                    sample_str = " | ".join([str(x)[:40] + "..." if len(str(x)) > 40 else str(x) for x in samples])
                     
-                    col_info_data.append({
-                        "#": i,
-                        "Column Name": col_name,
-                        "Data Type": data_type,
-                        "Non-null": f"{non_null_count}/{len(raw_df)}",
-                        "Fill Rate": f"{(non_null_count/len(raw_df)*100):.1f}%",
-                        "Sample Values": sample_str
+                    status_icon = "✅" if fill_rate >= 80 else "⚠️" if fill_rate >= 50 else "❌"
+                    
+                    field_analysis_data.append({
+                        "Field Name": field,
+                        "Status": f"{status_icon} Available",
+                        "Filled Records": f"{filled_count}/{len(raw_df)}",
+                        "Fill Rate": f"{fill_rate:.1f}%",
+                        "Sample Data": sample_str or "No data",
+                        "Usage": "Will be mapped to Reevo" if field in transformer.hubspot_to_reevo_mapping else "Phone priority selection"
                     })
-                
-                col_info_df = pd.DataFrame(col_info_data)
-                st.dataframe(col_info_df, use_container_width=True, hide_index=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Key fields analysis
-                st.subheader("🎯 Key Fields Analysis")
-                st.write("**Analysis of fields that will be used for Reevo import:**")
-                
-                # Analyze key fields for import
-                key_fields = list(transformer.hubspot_to_reevo_mapping.keys()) + transformer.phone_fields
-                
-                field_analysis_data = []
-                for field in key_fields:
-                    if field in raw_df.columns:
-                        filled_count = raw_df[field].notna().sum()
-                        empty_count = len(raw_df) - filled_count
-                        fill_rate = (filled_count / len(raw_df)) * 100
-                        
-                        # Sample data
-                        samples = raw_df[field].dropna().head(3).tolist()
-                        sample_str = " | ".join([str(x)[:40] + "..." if len(str(x)) > 40 else str(x) for x in samples])
-                        
-                        status_icon = "✅" if fill_rate >= 80 else "⚠️" if fill_rate >= 50 else "❌"
-                        
-                        field_analysis_data.append({
-                            "Field Name": field,
-                            "Status": f"{status_icon} Available",
-                            "Filled Records": f"{filled_count}/{len(raw_df)}",
-                            "Fill Rate": f"{fill_rate:.1f}%",
-                            "Sample Data": sample_str or "No data",
-                            "Usage": "Will be mapped to Reevo" if field in transformer.hubspot_to_reevo_mapping else "Phone priority selection"
-                        })
-                    else:
-                        field_analysis_data.append({
-                            "Field Name": field,
-                            "Status": "❌ Missing",
-                            "Filled Records": "0/0",
-                            "Fill Rate": "0.0%", 
-                            "Sample Data": "Field not found in export",
-                            "Usage": "Will be empty in Reevo import"
-                        })
-                
-                analysis_df = pd.DataFrame(field_analysis_data)
-                st.dataframe(analysis_df, use_container_width=True, hide_index=True)
-                
-                # Data quality assessment
-                st.subheader("🔬 Data Quality Assessment")
-                
-                # Identify potential issues
-                quality_issues = []
-                quality_successes = []
-                
-                # Check for missing required fields
-                required_hubspot_fields = ['First Name', 'Last Name', 'Company Name', 'Website']
-                missing_required = [field for field in required_hubspot_fields if field not in raw_df.columns]
-                
-                if missing_required:
-                    quality_issues.append(f"Missing critical fields: {', '.join(missing_required)}")
                 else:
-                    quality_successes.append("All critical fields present ✅")
-                
-                # Check email/phone coverage
-                email_coverage = (raw_df['Email'].notna().sum() / len(raw_df)) * 100 if 'Email' in raw_df.columns else 0
-                
-                phone_coverage = 0
-                available_phone_fields = [field for field in transformer.phone_fields if field in raw_df.columns]
-                if available_phone_fields:
-                    phone_data = raw_df[available_phone_fields].notna().any(axis=1)
-                    phone_coverage = (phone_data.sum() / len(raw_df)) * 100
-                
-                contact_info_coverage = 0
-                if 'Email' in raw_df.columns and available_phone_fields:
-                    has_contact_info = raw_df['Email'].notna() | raw_df[available_phone_fields].notna().any(axis=1)
-                    contact_info_coverage = (has_contact_info.sum() / len(raw_df)) * 100
-                
-                if contact_info_coverage >= 95:
-                    quality_successes.append(f"Excellent contact info coverage: {contact_info_coverage:.1f}% ✅")
-                elif contact_info_coverage >= 80:
-                    quality_issues.append(f"Good contact info coverage: {contact_info_coverage:.1f}% ⚠️")
+                    field_analysis_data.append({
+                        "Field Name": field,
+                        "Status": "❌ Missing",
+                        "Filled Records": "0/0",
+                        "Fill Rate": "0.0%", 
+                        "Sample Data": "Field not found in export",
+                        "Usage": "Will be empty in Reevo import"
+                    })
+            
+            analysis_df = pd.DataFrame(field_analysis_data)
+            st.dataframe(analysis_df, use_container_width=True, hide_index=True)
+            
+            # Data quality assessment
+            st.subheader("🔬 Data Quality Assessment")
+            
+            # Identify potential issues
+            quality_issues = []
+            quality_successes = []
+            
+            # Check for missing required fields
+            required_hubspot_fields = ['First Name', 'Last Name', 'Company Name', 'Website']
+            missing_required = [field for field in required_hubspot_fields if field not in raw_df.columns]
+            
+            if missing_required:
+                quality_issues.append(f"Missing critical fields: {', '.join(missing_required)}")
+            else:
+                quality_successes.append("All critical fields present ✅")
+            
+            # Check email/phone coverage
+            email_coverage = (raw_df['Email'].notna().sum() / len(raw_df)) * 100 if 'Email' in raw_df.columns else 0
+            
+            phone_coverage = 0
+            available_phone_fields = [field for field in transformer.phone_fields if field in raw_df.columns]
+            if available_phone_fields:
+                phone_data = raw_df[available_phone_fields].notna().any(axis=1)
+                phone_coverage = (phone_data.sum() / len(raw_df)) * 100
+            
+            contact_info_coverage = 0
+            if 'Email' in raw_df.columns and available_phone_fields:
+                has_contact_info = raw_df['Email'].notna() | raw_df[available_phone_fields].notna().any(axis=1)
+                contact_info_coverage = (has_contact_info.sum() / len(raw_df)) * 100
+            
+            if contact_info_coverage >= 95:
+                quality_successes.append(f"Excellent contact info coverage: {contact_info_coverage:.1f}% ✅")
+            elif contact_info_coverage >= 80:
+                quality_issues.append(f"Good contact info coverage: {contact_info_coverage:.1f}% ⚠️")
+            else:
+                quality_issues.append(f"Low contact info coverage: {contact_info_coverage:.1f}% ❌")
+            
+            # Check for duplicates
+            if 'Email' in raw_df.columns:
+                email_duplicates = raw_df['Email'].duplicated().sum()
+                if email_duplicates > 0:
+                    quality_issues.append(f"Found {email_duplicates} duplicate email addresses")
                 else:
-                    quality_issues.append(f"Low contact info coverage: {contact_info_coverage:.1f}% ❌")
+                    quality_successes.append("No duplicate emails found ✅")
+            
+            # Display quality assessment
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if quality_successes:
+                    st.markdown('<div class="success-box">', unsafe_allow_html=True)
+                    st.success("✅ **Data Quality Strengths:**")
+                    for success in quality_successes:
+                        st.write(f"• {success}")
+                    st.markdown('</div>', unsafe_allow_html=True)
+            
+            with col2:
+                if quality_issues:
+                    st.markdown('<div class="warning-box">', unsafe_allow_html=True)
+                    st.warning("⚠️ **Areas for Attention:**")
+                    for issue in quality_issues:
+                        st.write(f"• {issue}")
+                    st.write("These will be addressed during processing.")
+                    st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Sample records preview
+            st.subheader("👁️ Sample Records Preview")
+            st.write("**First 5 records showing key fields:**")
+            
+            # Show key fields for preview
+            preview_fields = ['First Name', 'Last Name', 'Email', 'Mobile', 'Job Title', 'Company Name', 'Website']
+            available_preview_fields = [field for field in preview_fields if field in raw_df.columns]
+            
+            if available_preview_fields:
+                preview_data = raw_df[available_preview_fields].head(5)
+                st.dataframe(preview_data, use_container_width=True)
+            
+            # Action button
+            st.markdown("---")
+            if st.button("✨ Proceed to Field Mapping & Owner Setup", type="primary", use_container_width=True):
+                st.session_state.step = 2
+                st.rerun()
                 
-                # Check for duplicates
-                if 'Email' in raw_df.columns:
-                    email_duplicates = raw_df['Email'].duplicated().sum()
-                    if email_duplicates > 0:
-                        quality_issues.append(f"Found {email_duplicates} duplicate email addresses")
-                    else:
-                        quality_successes.append("No duplicate emails found ✅")
-                
-                # Display quality assessment
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if quality_successes:
-                        st.markdown('<div class="success-box">', unsafe_allow_html=True)
-                        st.success("✅ **Data Quality Strengths:**")
-                        for success in quality_successes:
-                            st.write(f"• {success}")
-                        st.markdown('</div>', unsafe_allow_html=True)
-                
-                with col2:
-                    if quality_issues:
-                        st.markdown('<div class="warning-box">', unsafe_allow_html=True)
-                        st.warning("⚠️ **Areas for Attention:**")
-                        for issue in quality_issues:
-                            st.write(f"• {issue}")
-                        st.write("These will be addressed during processing.")
-                        st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Sample records preview
-                st.subheader("👁️ Sample Records Preview")
-                st.write("**First 5 records showing key fields:**")
-                
-                # Show key fields for preview
-                preview_fields = ['First Name', 'Last Name', 'Email', 'Mobile', 'Job Title', 'Company Name', 'Website']
-                available_preview_fields = [field for field in preview_fields if field in raw_df.columns]
-                
-                if available_preview_fields:
-                    preview_data = raw_df[available_preview_fields].head(5)
-                    st.dataframe(preview_data, use_container_width=True)
-                
-                # Action button
-                st.markdown("---")
-                if st.button("✨ Proceed to Field Mapping & Owner Setup", type="primary", use_container_width=True):
-                    st.session_state.step = 2
-                    st.rerun()
-                    
-            except Exception as e:
-                st.markdown('<div class="error-box">', unsafe_allow_html=True)
-                st.error(f"❌ Error reading file: {str(e)}")
-                st.write("**Common solutions:**")
-                st.write("• Ensure your file is in CSV format")
-                st.write("• Check that the file is not corrupted")
-                st.write("• Verify the file encoding is UTF-8")
-                st.write("• Try re-exporting from HubSpot")
-                st.markdown('</div>', unsafe_allow_html=True)
-        
         else:
             # Show instructions when no file is uploaded
             st.info("👆 **Please upload your HubSpot CSV export file to begin the import process.**")
@@ -776,9 +766,7 @@ def main():
                     st.write(f"• {col}")
                 
                 st.info("💡 Column order doesn't matter - the system will find the right fields automatically!")
-    
-    # Rest of the steps remain the same...
-    
+
     # Step 2: Field Mapping
     if st.session_state.step >= 2 and st.session_state.raw_data is not None:
         st.markdown('<div class="step-header"><h2>Step 2: 🗺️ Field Mapping & Owner Setup</h2></div>', unsafe_allow_html=True)
