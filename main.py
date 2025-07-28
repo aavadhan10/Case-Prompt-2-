@@ -504,8 +504,8 @@ def main():
         # Option selection
         upload_option = st.radio(
             "Choose how to provide your data:",
-            ["📁 Upload my own HubSpot CSV file", "📊 Use Case Study Raw Data File"],
-            help="Select whether to upload your own file or use the provided case study data"
+            ["📁 Upload my own HubSpot CSV file", "🧪 Use sample data file (for testing)"],
+            help="Select whether to upload your own file or use the provided sample data"
         )
         
         raw_df = None
@@ -526,28 +526,28 @@ def main():
                     st.error(f"❌ Error reading uploaded file: {str(e)}")
                     return
         
-        else:  # Use case study data
-            st.info("📊 **Using Case Study Raw Data File**: This will load the actual HubSpot export from the case study with real customer data.")
+        else:  # Use sample data
+            st.info("🧪 **Using Sample Data**: This will load the provided HubSpot export sample with 51 records and 73 columns.")
             
-            if st.button("🚀 Load Case Study Data", type="secondary"):
+            if st.button("🚀 Load Sample Data", type="secondary"):
                 try:
-                    # Try to load the case study data file
-                    case_study_file_path = "Case Study Product Operations  2025.07.12  raw_data.csv"
+                    # Try to load the sample data file
+                    sample_file_path = "Case Study Product Operations  2025.07.12  raw_data.csv"
                     
                     # Check if file exists using the file system API if available
                     try:
                         # This will work if the file is available in the app's file system
-                        raw_df = pd.read_csv(case_study_file_path)
-                        file_source = "**Case Study Raw Data File** (Case Study Product Operations 2025.07.12 raw_data.csv)"
+                        raw_df = pd.read_csv(sample_file_path)
+                        file_source = "**sample data file** (Case Study Product Operations 2025.07.12 raw_data.csv)"
                         file_size = f"{raw_df.memory_usage(deep=True).sum() / 1024:.1f} KB"
                     except:
                         # Fallback: Create sample data structure if file not available
-                        st.warning("⚠️ Case Study Raw Data File not found. Please upload your own HubSpot CSV file instead.")
-                        st.info("💡 **To use case study data**: Place the 'Case Study Product Operations  2025.07.12  raw_data.csv' file in the same directory as this application.")
+                        st.warning("⚠️ Sample data file not found. Please upload your own HubSpot CSV file instead.")
+                        st.info("💡 **To use sample data**: Place the 'Case Study Product Operations  2025.07.12  raw_data.csv' file in the same directory as this application.")
                         return
                         
                 except Exception as e:
-                    st.error(f"❌ Error loading case study data: {str(e)}")
+                    st.error(f"❌ Error loading sample data: {str(e)}")
                     st.info("Please upload your own HubSpot CSV file instead.")
                     return
         
