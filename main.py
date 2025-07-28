@@ -83,12 +83,19 @@ st.markdown("""
         padding: 1rem;
         margin: 1rem 0;
     }
+    .requirements-table {
+        background-color: #f8f9fa;
+        border: 2px solid #28a745;
+        border-radius: 10px;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 class HubSpotReevoTransformer:
     def __init__(self):
-        # EXACT field mapping from Reevo template
+        # EXACT field mapping from Reevo template - all required fields
         self.hubspot_to_reevo_mapping = {
             'First Name': 'contact_first_name',
             'Last Name': 'contact_last_name', 
@@ -103,13 +110,35 @@ class HubSpotReevoTransformer:
         # Phone fields in priority order
         self.phone_fields = ['Mobile', 'Direct', 'Office']
         
-        # EXACT Reevo template headers
+        # EXACT Reevo template headers - ALL 11 required fields
         self.reevo_template_headers = [
-            'contact_owner_id', 'contact_first_name', 'contact_last_name',
-            'contact_primary_email', 'contact_primary_phone_number', 'contact_linkedin_url',
-            'contact_account_role_title', 'account_owner_id', 'account_name',
-            'account_domain_name', 'account_linkedin_url'
+            'contact_owner_id',           # Contact Owner ID (email) - Recommended
+            'contact_first_name',         # Contact First Name - Required  
+            'contact_last_name',          # Contact Last Name - Required
+            'contact_primary_email',      # Contact Email - Required if no phone
+            'contact_primary_phone_number', # Contact Phone - Required if no email
+            'contact_linkedin_url',       # Contact LinkedIn URL - Recommended
+            'contact_account_role_title', # Contact Job Title - Recommended
+            'account_owner_id',           # Account Owner ID (email) - Recommended
+            'account_name',               # Account Name - Required
+            'account_domain_name',        # Account Domain - Required
+            'account_linkedin_url'        # Account LinkedIn URL - Recommended
         ]
+        
+        # Field requirements from Reevo template
+        self.field_requirements = {
+            'contact_owner_id': {'required': False, 'type': 'Recommended', 'description': 'Contact Owner ID (email)'},
+            'contact_first_name': {'required': True, 'type': 'Required', 'description': 'Contact First Name'},
+            'contact_last_name': {'required': True, 'type': 'Required', 'description': 'Contact Last Name'},
+            'contact_primary_email': {'required': 'conditional', 'type': 'Required if no phone', 'description': 'Contact Email'},
+            'contact_primary_phone_number': {'required': 'conditional', 'type': 'Required if no email', 'description': 'Contact Phone'},
+            'contact_linkedin_url': {'required': False, 'type': 'Recommended', 'description': 'Contact LinkedIn URL'},
+            'contact_account_role_title': {'required': False, 'type': 'Recommended', 'description': 'Contact Job Title'},
+            'account_owner_id': {'required': False, 'type': 'Recommended', 'description': 'Account Owner ID (email)'},
+            'account_name': {'required': True, 'type': 'Required', 'description': 'Account Name'},
+            'account_domain_name': {'required': True, 'type': 'Required', 'description': 'Account Domain'},
+            'account_linkedin_url': {'required': False, 'type': 'Recommended', 'description': 'Account LinkedIn URL'}
+        }
         
         # Cleaning steps tracker
         self.cleaning_steps = []
@@ -221,27 +250,27 @@ class HubSpotReevoTransformer:
         # Clear previous steps for this record
         self.cleaning_steps = []
         
-        # Initialize all Reevo fields
+        # Initialize all Reevo fields with empty values
         for header in self.reevo_template_headers:
             transformed[header] = ''
         
-        # Set owner IDs if provided
+        # Set owner IDs if provided (these should be email addresses)
         if contact_owner:
             transformed['contact_owner_id'] = contact_owner
             self.cleaning_steps.append({
-                'field': 'Contact Owner',
+                'field': 'Contact Owner ID',
                 'original': 'Empty',
                 'cleaned': contact_owner,
-                'action': 'Set default contact owner'
+                'action': 'Set default contact owner email'
             })
         
         if account_owner:
             transformed['account_owner_id'] = account_owner
             self.cleaning_steps.append({
-                'field': 'Account Owner',
+                'field': 'Account Owner ID',
                 'original': 'Empty', 
                 'cleaned': account_owner,
-                'action': 'Set default account owner'
+                'action': 'Set default account owner email'
             })
         
         # Map standard fields with cleaning tracking
@@ -270,37 +299,37 @@ class HubSpotReevoTransformer:
         return transformed, self.cleaning_steps
     
     def validate_record(self, record, index):
-        """Validate record with detailed error tracking"""
+        """Validate record against ALL Reevo requirements"""
         errors = []
         warnings = []
         
-        # Required field checks
-        required_checks = [
-            ('contact_first_name', 'First Name'),
-            ('contact_last_name', 'Last Name'),
-            ('account_name', 'Company Name'),
-            ('account_domain_name', 'Website/Domain')
+        # Required field checks - MUST be present
+        required_fields = [
+            ('contact_first_name', 'Contact First Name'),
+            ('contact_last_name', 'Contact Last Name'),
+            ('account_name', 'Account Name'),
+            ('account_domain_name', 'Account Domain')
         ]
         
-        for field_name, display_name in required_checks:
+        for field_name, display_name in required_fields:
             if not record.get(field_name, '').strip():
                 errors.append(f"Row {index + 1}: Missing required field '{display_name}'")
         
-        # Email OR phone requirement
+        # Email OR phone requirement - at least one MUST be present
         has_email = record.get('contact_primary_email', '').strip() != ''
         has_phone = record.get('contact_primary_phone_number', '').strip() != ''
         
         if not has_email and not has_phone:
             errors.append(f"Row {index + 1}: Must have either email or phone number")
         
-        # Email format validation
+        # Email format validation if present
         if has_email and not self.validate_email(record['contact_primary_email']):
             errors.append(f"Row {index + 1}: Invalid email format")
         
-        # LinkedIn URL checks
+        # LinkedIn URL checks - warn if invalid
         linkedin_fields = [
-            ('contact_linkedin_url', 'Personal LinkedIn'),
-            ('account_linkedin_url', 'Company LinkedIn')
+            ('contact_linkedin_url', 'Contact LinkedIn'),
+            ('account_linkedin_url', 'Account LinkedIn')
         ]
         
         for field_name, display_name in linkedin_fields:
@@ -308,7 +337,97 @@ class HubSpotReevoTransformer:
             if url and 'linkedin.com' not in url.lower():
                 warnings.append(f"Row {index + 1}: {display_name} URL may be invalid")
         
+        # Owner ID format checks - should be email addresses
+        owner_fields = [
+            ('contact_owner_id', 'Contact Owner ID'),
+            ('account_owner_id', 'Account Owner ID')
+        ]
+        
+        for field_name, display_name in owner_fields:
+            owner_id = record.get(field_name, '')
+            if owner_id and not self.validate_email(owner_id):
+                warnings.append(f"Row {index + 1}: {display_name} should be an email address")
+        
         return errors, warnings
+
+def show_reevo_requirements():
+    """Show the complete Reevo template requirements"""
+    st.subheader("📋 Complete Reevo Import Requirements")
+    
+    # Create the requirements table
+    requirements_data = [
+        {
+            "Reevo Object": "Contact",
+            "Reevo Field": "Owner ID (email)", 
+            "Required?": "Recommended",
+            "Import Header": "contact_owner_id"
+        },
+        {
+            "Reevo Object": "Contact",
+            "Reevo Field": "First Name",
+            "Required?": "Yes", 
+            "Import Header": "contact_first_name"
+        },
+        {
+            "Reevo Object": "Contact",
+            "Reevo Field": "Last Name",
+            "Required?": "Yes",
+            "Import Header": "contact_last_name"
+        },
+        {
+            "Reevo Object": "Contact", 
+            "Reevo Field": "Email",
+            "Required?": "Yes, if no phone #",
+            "Import Header": "contact_primary_email"
+        },
+        {
+            "Reevo Object": "Contact",
+            "Reevo Field": "Phone Number", 
+            "Required?": "Yes, if no email",
+            "Import Header": "contact_primary_phone_number"
+        },
+        {
+            "Reevo Object": "Contact",
+            "Reevo Field": "LinkedIn URL",
+            "Required?": "Recommended", 
+            "Import Header": "contact_linkedin_url"
+        },
+        {
+            "Reevo Object": "Contact",
+            "Reevo Field": "Job Title",
+            "Required?": "Recommended",
+            "Import Header": "contact_account_role_title"
+        },
+        {
+            "Reevo Object": "Account",
+            "Reevo Field": "Owner ID (email)",
+            "Required?": "Recommended",
+            "Import Header": "account_owner_id"
+        },
+        {
+            "Reevo Object": "Account", 
+            "Reevo Field": "Name",
+            "Required?": "Yes",
+            "Import Header": "account_name"
+        },
+        {
+            "Reevo Object": "Account",
+            "Reevo Field": "Domain Name", 
+            "Required?": "Yes",
+            "Import Header": "account_domain_name"
+        },
+        {
+            "Reevo Object": "Account",
+            "Reevo Field": "LinkedIn URL",
+            "Required?": "Recommended",
+            "Import Header": "account_linkedin_url"
+        }
+    ]
+    
+    requirements_df = pd.DataFrame(requirements_data)
+    st.dataframe(requirements_df, use_container_width=True, hide_index=True)
+    
+    st.info("💡 This tool automatically maps your HubSpot data to ALL these required Reevo fields!")
 
 def show_data_cleaning_demo():
     """Show examples of data cleaning with real data"""
@@ -353,7 +472,7 @@ def main():
     ## 📋 What This Tool Does
     
     This application transforms your **HubSpot contact export** into a **Reevo-ready import file** through a guided 5-step process. 
-    It handles all the complex data cleaning, field mapping, and validation automatically while showing you exactly what's happening at each step.
+    It handles all the complex data cleaning, field mapping, and validation automatically while ensuring **ALL 11 required Reevo fields** are properly formatted.
     
     ### 🎯 **Who This Is For:**
     - **Reevo team members** processing customer imports
@@ -362,11 +481,15 @@ def main():
     
     ### ⚡ **What You Get:**
     - **Complete data transparency** - see your raw data and all transformations
-    - **Automatic field mapping** - HubSpot fields → Reevo fields  
+    - **Automatic field mapping** - All 11 Reevo fields mapped correctly
     - **Data cleaning & validation** - ensures high-quality imports
     - **Ready-to-import file** - no manual cleanup needed
     - **Full audit trail** - complete log of all changes made
     """)
+    
+    # Show complete Reevo requirements
+    with st.expander("📋 **Complete Reevo Import Template Requirements**", expanded=False):
+        show_reevo_requirements()
     
     # Process Flow Overview
     with st.expander("🔍 **Process Overview - What Happens in Each Step**", expanded=False):
@@ -382,12 +505,12 @@ def main():
         ---
         
         ### **Step 2: 🗺️ Field Mapping & Owner Setup**
-        - Configure **default owners** for contacts and accounts (optional)
-        - Review **exact field mappings** (HubSpot → Reevo)
+        - Configure **default owner emails** for contacts and accounts (recommended)
+        - Review **exact field mappings** (HubSpot → All 11 Reevo fields)
         - See **phone number priority logic** (Mobile → Direct → Office)
         - Preview **sample transformation** with your actual data
         
-        **What you'll see:** Field mapping table, owner setup, transformation preview
+        **What you'll see:** Complete field mapping table, owner setup, transformation preview
         
         ---
         
@@ -402,22 +525,22 @@ def main():
         ---
         
         ### **Step 4: ✅ Data Validation**
-        - **Validate every record** against Reevo import requirements
+        - **Validate every record** against ALL Reevo import requirements
         - See **per-record validation status** with specific error messages
         - Get **detailed error analysis** grouped by issue type
         - Review **sample valid records** ready for import
         
-        **Quality checks:** Required fields, email format, phone availability, LinkedIn URLs
+        **Quality checks:** All required fields, email format, phone availability, LinkedIn URLs, owner email format
         
         ---
         
         ### **Step 5: 📥 Generate Import File**
-        - View **complete final dataset** (all records, not just preview)
+        - View **complete final dataset** (all 11 fields, all records)
         - See **comprehensive statistics** including success rates
         - **Download ready-to-import file** for Reevo
         - Get **step-by-step import instructions**
         
-        **Final output:** Clean CSV file that imports directly into Reevo with no manual work
+        **Final output:** Clean CSV file with ALL 11 Reevo fields that imports directly into Reevo with no manual work
         """)
     
     # Key Benefits Section
@@ -426,11 +549,11 @@ def main():
     
     | Feature | Benefit |
     |---------|---------|
-    | **🔄 Automatic Processing** | No manual field mapping or data cleanup required |
+    | **🔄 Complete Field Coverage** | Maps to ALL 11 required Reevo fields automatically |
     | **📊 Complete Transparency** | See exactly what happens to every piece of data |
     | **✅ Quality Assurance** | Built-in validation prevents import errors |
     | **📱 Smart Phone Logic** | Automatically selects best available phone number |
-    | **🏢 Owner Management** | Assign default owners to all imported records |
+    | **🏢 Owner Management** | Assign default owner emails to all imported records |
     | **🔍 Error Detection** | Identifies and explains data issues before import |
     | **📋 Audit Trail** | Complete log of all transformations for compliance |
     | **⚡ Self-Service** | Team members can process imports independently |
@@ -438,7 +561,7 @@ def main():
     ### ⚠️ **Important Notes:**
     - **Column order doesn't matter** - the system finds fields by name
     - **Handles up to 73 columns** - processes what's available, ignores the rest
-    - **Only imports specific fields** - follows exact Reevo template requirements
+    - **Maps to ALL 11 Reevo fields** - follows exact Reevo template requirements
     - **No data is stored** - all processing happens in your browser session
     - **Output is import-ready** - no template cleanup needed
     """)
@@ -450,10 +573,10 @@ def main():
     **What you need:**
     1. **HubSpot CSV export** containing your contacts and companies
     2. **5-10 minutes** depending on data size
-    3. **Owner email addresses** (optional but recommended)
+    3. **Owner email addresses** for default assignment (recommended)
     
     **What you'll get:**
-    - Clean, validated Reevo import file
+    - Clean, validated Reevo import file with ALL 11 fields
     - Complete transformation report
     - Step-by-step import instructions
     
@@ -489,6 +612,10 @@ def main():
             st.sidebar.success(step_name)
         else:
             st.sidebar.info(step_name)
+    
+    # Reevo requirements in sidebar
+    with st.sidebar.expander("📋 Reevo Requirements"):
+        show_reevo_requirements()
     
     # Data cleaning examples
     with st.sidebar.expander("🧹 Cleaning Examples"):
@@ -540,10 +667,21 @@ def main():
                         raw_df = pd.read_csv(case_study_file_path)
                         file_source = "**Case Study Raw Data File** (raw_data.csv)"
                         file_size = f"{raw_df.memory_usage(deep=True).sum() / 1024:.1f} KB"
-                    except:
+                        
+                        # Explicitly show success and debug info
+                        st.success(f"✅ Successfully loaded case study data!")
+                        st.write(f"🔍 DEBUG: Loaded {len(raw_df)} rows, {len(raw_df.columns)} columns")
+                        st.write(f"🔍 DEBUG: Sample columns: {list(raw_df.columns[:5])}")
+                        
+                    except FileNotFoundError:
                         # Fallback: Create sample data structure if file not available
                         st.warning("⚠️ Case Study Raw Data File not found. Please upload your own HubSpot CSV file instead.")
-                        st.info("💡 **To use case study data**: Place the 'raw_data' file in the same directory as this application.")
+                        st.info("💡 **To use case study data**: Place the 'raw_data.csv' file in the same directory as this application.")
+                        st.write(f"🔍 DEBUG: Looking for file at: {case_study_file_path}")
+                        return
+                    except Exception as e:
+                        st.error(f"❌ Error reading case study file: {str(e)}")
+                        st.write(f"🔍 DEBUG: File path attempted: {case_study_file_path}")
                         return
                         
                 except Exception as e:
@@ -619,7 +757,7 @@ def main():
             
             # Key fields analysis
             st.subheader("🎯 Key Fields Analysis")
-            st.write("**Analysis of fields that will be used for Reevo import:**")
+            st.write("**Analysis of fields that will be used for Reevo import (ALL 11 required fields):**")
             
             # Analyze key fields for import
             key_fields = list(transformer.hubspot_to_reevo_mapping.keys()) + transformer.phone_fields
@@ -738,7 +876,14 @@ def main():
             # Action button
             st.markdown("---")
             if st.button("✨ Proceed to Field Mapping & Owner Setup", type="primary", use_container_width=True):
+                # Debug information
+                st.write(f"DEBUG: Current step: {st.session_state.step}")
+                st.write(f"DEBUG: Raw data loaded: {st.session_state.raw_data is not None}")
+                if st.session_state.raw_data is not None:
+                    st.write(f"DEBUG: Raw data shape: {st.session_state.raw_data.shape}")
+                
                 st.session_state.step = 2
+                st.success("✅ Moving to Step 2: Field Mapping & Owner Setup")
                 st.rerun()
                 
         else:
@@ -771,24 +916,31 @@ def main():
     if st.session_state.step >= 2 and st.session_state.raw_data is not None:
         st.markdown('<div class="step-header"><h2>Step 2: 🗺️ Field Mapping & Owner Setup</h2></div>', unsafe_allow_html=True)
         
+        # Debug information
+        st.write(f"🔍 DEBUG: Successfully reached Step 2!")
+        st.write(f"🔍 DEBUG: Current step: {st.session_state.step}")
+        st.write(f"🔍 DEBUG: Raw data shape: {st.session_state.raw_data.shape}")
+        
         raw_df = st.session_state.raw_data
         
         # Owner Configuration Section
         st.subheader("👤 Owner Assignment Configuration")
-        st.write("Set default owners for imported contacts and accounts (optional but recommended):")
+        st.write("Set default owner **EMAIL ADDRESSES** for imported contacts and accounts (recommended):")
+        
+        st.info("💡 **Important**: Enter the **email addresses** of Reevo users who should own these records. These must be valid email addresses of existing Reevo users.")
         
         col1, col2 = st.columns(2)
         with col1:
             contact_owner = st.text_input(
                 "Default Contact Owner Email",
                 placeholder="john.doe@company.com",
-                help="This email will be assigned as the owner for all imported contacts"
+                help="Enter the email address of the Reevo user who will own all imported contacts"
             )
         with col2:
             account_owner = st.text_input(
                 "Default Account Owner Email", 
                 placeholder="sales.manager@company.com",
-                help="This email will be assigned as the owner for all imported accounts"
+                help="Enter the email address of the Reevo user who will own all imported accounts"
             )
         
         # Store owner settings in session state
@@ -805,13 +957,40 @@ def main():
             st.success(f"✅ Owner settings configured: {' | '.join(owners_set)}")
             st.markdown('</div>', unsafe_allow_html=True)
         
-        # Show the exact mapping
-        st.subheader("📋 HubSpot → Reevo Field Mapping")
-        st.write("**Exact mapping based on Reevo import template:**")
+        # Show the COMPLETE mapping for ALL 11 Reevo fields
+        st.subheader("📋 Complete HubSpot → Reevo Field Mapping")
+        st.write("**Complete mapping to ALL 11 required Reevo fields:**")
+        
+        st.markdown('<div class="requirements-table">', unsafe_allow_html=True)
+        st.write("**🎯 This tool maps to ALL 11 Reevo import fields:**")
         
         mapping_data = []
+        
+        # Add owner fields first
+        mapping_data.append({
+            "HubSpot Field": "Default Contact Owner",
+            "→": "→",
+            "Reevo Field": "contact_owner_id",
+            "Requirement": "Recommended",
+            "Available": "✅" if contact_owner else "⚠️ Not Set",
+            "Sample Data": contact_owner if contact_owner else "Enter email above",
+            "Records": f"All {len(raw_df)} records" if contact_owner else "0 records"
+        })
+        
+        mapping_data.append({
+            "HubSpot Field": "Default Account Owner",
+            "→": "→", 
+            "Reevo Field": "account_owner_id",
+            "Requirement": "Recommended",
+            "Available": "✅" if account_owner else "⚠️ Not Set",
+            "Sample Data": account_owner if account_owner else "Enter email above",
+            "Records": f"All {len(raw_df)} records" if account_owner else "0 records"
+        })
+        
+        # Add mapped fields
         for hubspot_field, reevo_field in transformer.hubspot_to_reevo_mapping.items():
             is_available = hubspot_field in raw_df.columns
+            requirement = transformer.field_requirements[reevo_field]['type']
             
             if is_available:
                 sample_values = raw_df[hubspot_field].dropna().head(2).tolist()
@@ -825,13 +1004,39 @@ def main():
                 "HubSpot Field": hubspot_field,
                 "→": "→",
                 "Reevo Field": reevo_field,
+                "Requirement": requirement,
                 "Available": "✅" if is_available else "❌",
                 "Sample Data": sample_str,
                 "Records": f"{filled}/{len(raw_df)}"
             })
         
+        # Add phone field
+        phone_available = any(field in raw_df.columns for field in transformer.phone_fields)
+        phone_sample = ""
+        phone_count = 0
+        
+        if phone_available:
+            for field in transformer.phone_fields:
+                if field in raw_df.columns:
+                    samples = raw_df[field].dropna().head(1).tolist()
+                    if samples:
+                        phone_sample = str(samples[0])
+                        phone_count = raw_df[field].notna().sum()
+                        break
+        
+        mapping_data.append({
+            "HubSpot Field": "Mobile/Direct/Office",
+            "→": "→",
+            "Reevo Field": "contact_primary_phone_number",
+            "Requirement": "Required if no email",
+            "Available": "✅" if phone_available else "❌",
+            "Sample Data": phone_sample if phone_sample else "No phone fields found",
+            "Records": f"{phone_count}/{len(raw_df)}" if phone_available else "0/0"
+        })
+        
         mapping_df = pd.DataFrame(mapping_data)
         st.dataframe(mapping_df, use_container_width=True, hide_index=True)
+        st.markdown('</div>', unsafe_allow_html=True)
         
         # Phone number logic explanation
         st.subheader("📱 Phone Number Selection Logic")
@@ -865,6 +1070,7 @@ def main():
         # Preview transformation for first record
         if len(raw_df) > 0:
             st.subheader("🔍 Sample Transformation Preview")
+            st.write("**See how the first record will be transformed to ALL 11 Reevo fields:**")
             
             sample_record = raw_df.iloc[0].to_dict()
             contact_owner = st.session_state.get('contact_owner', '')
@@ -887,10 +1093,11 @@ def main():
             
             with col2:
                 st.markdown('<div class="final-data-section">', unsafe_allow_html=True)
-                st.write("**📤 Transformed Reevo Data:**")
+                st.write("**📤 Complete Reevo Data (ALL 11 fields):**")
                 for key, value in transformed_sample.items():
                     display_value = value if value else "Empty"
-                    st.write(f"• **{key}**: {display_value}")
+                    requirement = transformer.field_requirements[key]['type']
+                    st.write(f"• **{key}**: {display_value} *({requirement})*")
                 st.markdown('</div>', unsafe_allow_html=True)
             
             # Show cleaning steps applied
@@ -908,6 +1115,18 @@ def main():
             st.session_state.step = 3
             st.rerun()
     
+    # Debug: Show why Step 2 might not be showing
+    elif st.session_state.step >= 2:
+        st.error("🚨 DEBUG: Step 2 condition failed!")
+        st.write(f"• Current step: {st.session_state.step}")
+        st.write(f"• Raw data exists: {st.session_state.raw_data is not None}")
+        if st.session_state.raw_data is not None:
+            st.write(f"• Raw data type: {type(st.session_state.raw_data)}")
+            st.write(f"• Raw data shape: {st.session_state.raw_data.shape}")
+        else:
+            st.write("• Raw data is None - this is likely the issue!")
+            st.info("💡 Try reloading the case study data or uploading your own file.")
+    
     # Step 3: Data Cleaning & Transformation
     if st.session_state.step >= 3 and st.session_state.raw_data is not None:
         st.markdown('<div class="step-header"><h2>Step 3: 🧹 Data Cleaning & Transformation</h2></div>', unsafe_allow_html=True)
@@ -915,6 +1134,7 @@ def main():
         raw_df = st.session_state.raw_data
         
         st.write("🔄 **Processing all records through the complete cleaning and transformation pipeline...**")
+        st.info("📋 **Transforming to ALL 11 Reevo fields**: contact_owner_id, contact_first_name, contact_last_name, contact_primary_email, contact_primary_phone_number, contact_linkedin_url, contact_account_role_title, account_owner_id, account_name, account_domain_name, account_linkedin_url")
         
         # Progress tracking
         progress_bar = st.progress(0)
@@ -944,7 +1164,7 @@ def main():
             progress_bar.progress(progress)
             status_text.text(f'Processing: {record.get("First Name", "Unknown")} {record.get("Last Name", "")} ({i + 1}/{total_records})')
         
-        # Create final DataFrame
+        # Create final DataFrame with ALL 11 Reevo fields
         transformed_df = pd.DataFrame(transformed_records, columns=transformer.reevo_template_headers)
         st.session_state.transformed_data = transformed_df
         st.session_state.cleaning_log = all_cleaning_steps
@@ -959,7 +1179,7 @@ def main():
         with col1:
             st.metric("Records Processed", len(transformed_df))
         with col2:
-            st.metric("Cleaning Steps", len(all_cleaning_steps))
+            st.metric("Reevo Fields Created", len(transformer.reevo_template_headers))
         with col3:
             # Count records with data in key fields
             filled_contacts = (transformed_df['contact_first_name'] != '').sum()
@@ -970,10 +1190,24 @@ def main():
         
         st.markdown('</div>', unsafe_allow_html=True)
         
+        # Show the COMPLETE transformed data with ALL 11 fields
+        st.subheader("📋 Complete Transformed Data Preview")
+        st.write("**All records transformed to ALL 11 Reevo fields:**")
+        st.info(f"📊 Showing first 10 records with all {len(transformer.reevo_template_headers)} Reevo fields. Use scroll bars to see all data.")
+        
+        # Display sample of complete transformed data
+        st.dataframe(
+            transformed_df.head(10), 
+            use_container_width=True,
+            height=400
+        )
+        
         # Show detailed cleaning log
         st.subheader("🧹 Detailed Cleaning Log")
         
         if all_cleaning_steps:
+            st.metric("Total Cleaning Operations", len(all_cleaning_steps))
+            
             # Group cleaning steps by type
             cleaning_summary = {}
             for step in all_cleaning_steps:
@@ -1020,37 +1254,37 @@ def main():
         
         with col2:
             st.markdown('<div class="final-data-section">', unsafe_allow_html=True)
-            st.write("**📤 Reevo Import Format**")
+            st.write("**📤 Complete Reevo Format (ALL 11 fields)**")
             
-            # Show key transformed fields
-            key_reevo_fields = ['contact_first_name', 'contact_last_name', 'contact_primary_email', 
-                              'contact_primary_phone_number', 'account_name', 'account_domain_name']
-            st.dataframe(transformed_df[key_reevo_fields].head(3), use_container_width=True)
+            # Show ALL Reevo fields
+            st.dataframe(transformed_df.head(3), use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
         
-        # Field population analysis
-        st.subheader("📈 Field Population Analysis")
+        # Field population analysis for ALL 11 fields
+        st.subheader("📈 Complete Field Population Analysis")
+        st.write("**Analysis of ALL 11 Reevo import fields:**")
         
         population_data = []
         for field in transformer.reevo_template_headers:
             filled_count = (transformed_df[field] != '').sum()
             fill_rate = (filled_count / len(transformed_df)) * 100
+            requirement_info = transformer.field_requirements[field]
             
-            # Determine if field is required
-            if field in ['contact_first_name', 'contact_last_name', 'account_name', 'account_domain_name']:
-                requirement = "Required"
-            elif field in ['contact_primary_email', 'contact_primary_phone_number']:
-                requirement = "Required (Either/Or)"
+            # Status based on requirement and fill rate
+            if requirement_info['required'] == True:
+                status = "✅" if fill_rate == 100 else "❌"
+            elif requirement_info['required'] == 'conditional':
+                status = "✅" if fill_rate > 0 else "⚠️" 
             else:
-                requirement = "Recommended"
+                status = "✅" if fill_rate >= 0 else "⚠️"
             
             population_data.append({
                 "Reevo Field": field,
-                "Requirement": requirement,
+                "Requirement": requirement_info['type'],
+                "Description": requirement_info['description'],
                 "Filled Records": f"{filled_count}/{len(transformed_df)}",
                 "Fill Rate": f"{fill_rate:.1f}%",
-                "Status": "✅" if (requirement == "Required" and fill_rate == 100) or 
-                         (requirement != "Required" and fill_rate >= 0) else "⚠️"
+                "Status": status
             })
         
         population_df = pd.DataFrame(population_data)
@@ -1066,7 +1300,8 @@ def main():
         
         transformed_df = st.session_state.transformed_data
         
-        st.write("🔍 **Validating all transformed records against Reevo import requirements...**")
+        st.write("🔍 **Validating all transformed records against ALL Reevo import requirements...**")
+        st.info("📋 **Validating ALL 11 fields**: Checking required fields, email formats, phone availability, LinkedIn URLs, and owner email formats")
         
         # Validation progress
         validation_progress = st.progress(0)
@@ -1179,13 +1414,13 @@ def main():
             
             st.markdown('</div>', unsafe_allow_html=True)
         
-        # Show sample valid records
+        # Show sample valid records with ALL 11 fields
         if valid_records:
             st.subheader("✅ Sample Valid Records")
-            st.write("Preview of records ready for Reevo import:")
+            st.write("Preview of records ready for Reevo import (showing ALL 11 Reevo fields):")
             
             valid_sample = transformed_df.iloc[valid_records[:5]]
-            st.dataframe(valid_sample, use_container_width=True)
+            st.dataframe(valid_sample, use_container_width=True, height=300)
         
         # Import readiness assessment
         if len(valid_records) > 0:
@@ -1199,7 +1434,7 @@ def main():
                         f"Fix the {len(invalid_records)} invalid records and import them separately.")
             st.markdown('</div>', unsafe_allow_html=True)
             
-            if st.button("Generate Reevo Import File", type="primary"):
+            if st.button("Generate Complete Reevo Import File", type="primary"):
                 st.session_state.step = 5
                 st.rerun()
         else:
@@ -1214,7 +1449,7 @@ def main():
     
     # Step 5: Final Import File
     if st.session_state.step >= 5 and st.session_state.transformed_data is not None:
-        st.markdown('<div class="step-header"><h2>Step 5: 📥 Generate Reevo Import File</h2></div>', unsafe_allow_html=True)
+        st.markdown('<div class="step-header"><h2>Step 5: 📥 Generate Complete Reevo Import File</h2></div>', unsafe_allow_html=True)
         
         transformed_df = st.session_state.transformed_data
         cleaning_log = st.session_state.cleaning_log
@@ -1230,7 +1465,7 @@ def main():
         
         # Final success message
         st.markdown('<div class="final-data-section">', unsafe_allow_html=True)
-        st.success(f"🎉 **Import file ready!** {len(final_df)} validated records prepared for Reevo import.")
+        st.success(f"🎉 **Complete Reevo import file ready!** {len(final_df)} validated records with ALL 11 Reevo fields prepared for import.")
         st.markdown('</div>', unsafe_allow_html=True)
         
         # Final statistics
@@ -1243,19 +1478,19 @@ def main():
             success_rate = (len(final_df) / len(st.session_state.raw_data)) * 100
             st.metric("Success Rate", f"{success_rate:.1f}%")
         with col3:
-            st.metric("Cleaning Operations", len(cleaning_log))
+            st.metric("Reevo Fields", len(transformer.reevo_template_headers))
         with col4:
             file_size = len(final_df) * len(transformer.reevo_template_headers) * 25
             st.metric("File Size", f"{file_size / 1024:.1f} KB")
         
-        # Show final data preview - COMPLETE FILE, not just sample
-        st.subheader("📋 Complete Final Import File")
-        st.write("**This is the COMPLETE file that will be imported into Reevo:**")
+        # Show final data preview - COMPLETE FILE with ALL 11 fields
+        st.subheader("📋 Complete Final Import File - ALL 11 Reevo Fields")
+        st.write("**This is the COMPLETE file with ALL 11 Reevo fields that will be imported:**")
         
         # Show record count info
-        st.info(f"📊 Showing all {len(final_df)} records ready for import (use scroll bar to see all data)")
+        st.info(f"📊 Showing all {len(final_df)} records with all {len(transformer.reevo_template_headers)} Reevo fields (use scroll bars to see all data)")
         
-        # Display the FULL dataset with scrolling
+        # Display the FULL dataset with ALL fields
         st.dataframe(
             final_df, 
             use_container_width=True, 
@@ -1263,18 +1498,20 @@ def main():
             hide_index=False  # Show row numbers
         )
         
-        # Show column summary
-        st.subheader("📊 Complete File Summary")
+        # Show complete field summary for ALL 11 fields
+        st.subheader("📊 Complete File Summary - ALL 11 Reevo Fields")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.write("**Field Population Summary:**")
+            st.write("**Complete Field Population Summary:**")
             field_summary = []
             for col in final_df.columns:
                 filled = (final_df[col] != '').sum()
+                requirement_info = transformer.field_requirements[col]
                 field_summary.append({
-                    "Field": col,
+                    "Reevo Field": col,
+                    "Requirement": requirement_info['type'],
                     "Filled": f"{filled}/{len(final_df)}",
                     "Rate": f"{(filled/len(final_df)*100):.1f}%"
                 })
@@ -1291,14 +1528,17 @@ def main():
                 "Records with Email": (final_df['contact_primary_email'] != '').sum(),
                 "Records with Phone": (final_df['contact_primary_phone_number'] != '').sum(),
                 "Records with Contact Owner": (final_df['contact_owner_id'] != '').sum(),
-                "Records with Account Owner": (final_df['account_owner_id'] != '').sum()
+                "Records with Account Owner": (final_df['account_owner_id'] != '').sum(),
+                "Records with Contact LinkedIn": (final_df['contact_linkedin_url'] != '').sum(),
+                "Records with Account LinkedIn": (final_df['account_linkedin_url'] != '').sum(),
+                "Records with Job Title": (final_df['contact_account_role_title'] != '').sum()
             }
             
             for metric, value in quality_metrics.items():
                 st.write(f"• **{metric}**: {value}")
         
         # File download section
-        st.subheader("📥 Download Complete Import File")
+        st.subheader("📥 Download Complete Reevo Import File")
         
         # Create download
         csv_buffer = io.StringIO()
@@ -1306,16 +1546,16 @@ def main():
         csv_data = csv_buffer.getvalue()
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"reevo_import_ready_{timestamp}.csv"
+        filename = f"reevo_import_complete_11_fields_{timestamp}.csv"
         
         # Download button
         st.download_button(
-            label="📥 Download Reevo Import File",
+            label="📥 Download Complete Reevo Import File (ALL 11 Fields)",
             data=csv_data,
             file_name=filename,
             mime="text/csv",
             type="primary",
-            help="Download the validated, cleaned, and formatted file ready for Reevo import"
+            help="Download the complete validated file with ALL 11 Reevo fields ready for import"
         )
         
         # Complete process summary
@@ -1337,19 +1577,26 @@ def main():
                     len(final_df),
                     len(final_df)
                 ],
+                "Fields": [
+                    len(st.session_state.raw_data.columns),
+                    "Mapping configured",
+                    len(transformer.reevo_template_headers),
+                    len(transformer.reevo_template_headers),
+                    len(transformer.reevo_template_headers)
+                ],
                 "Key Actions": [
                     f"Loaded {len(st.session_state.raw_data.columns)} columns of raw data",
-                    f"Mapped {len(transformer.hubspot_to_reevo_mapping)} core fields",
+                    f"Mapped to ALL {len(transformer.reevo_template_headers)} Reevo fields",
                     f"Applied {len(cleaning_log)} cleaning operations", 
-                    f"Validated against Reevo requirements",
-                    "Generated final import-ready file"
+                    f"Validated against ALL Reevo requirements",
+                    "Generated complete import-ready file"
                 ],
                 "Data Quality": [
                     "Raw export format",
-                    "Field alignment complete",
+                    "ALL 11 fields aligned",
                     "Data cleaned & standardized",
                     "Requirements validated",
-                    "✅ Import ready"
+                    "✅ Complete import ready"
                 ]
             }
             
@@ -1360,27 +1607,31 @@ def main():
         st.subheader("🚀 Next Steps: Import to Reevo")
         
         st.markdown("""
-        **Your file is now ready for Reevo import! Follow these steps:**
+        **Your complete file with ALL 11 Reevo fields is now ready for import! Follow these steps:**
         
         1. **📥 Download** the file using the button above
         2. **🔐 Log into** your Reevo admin panel  
         3. **📁 Navigate** to the Import section
         4. **📊 Select** "Contact & Account Import"
         5. **📤 Upload** the downloaded CSV file
-        6. **👀 Review** the import preview (all fields should map automatically)
+        6. **👀 Review** the import preview (all 11 fields should map automatically)
         7. **▶️ Execute** the import
         8. **✅ Verify** imported contacts and accounts in Reevo
         
-        **🔥 Key Benefits of This File:**
-        - ✅ **Perfect Template Match**: Uses exact Reevo field structure
+        **🔥 Key Benefits of This Complete File:**
+        - ✅ **Perfect Template Match**: Uses exact Reevo field structure with ALL 11 fields
+        - ✅ **Complete Data Coverage**: Contact AND Account data fully populated
         - ✅ **Data Cleaned**: All transformations applied automatically  
-        - ✅ **Validated**: Only quality records included
+        - ✅ **Fully Validated**: Only quality records included
+        - ✅ **Owner Assignment**: Default owners set where configured
         - ✅ **No Manual Work**: Ready for direct import, no cleanup needed
+        - ✅ **LinkedIn URLs**: Personal and company LinkedIn URLs included
+        - ✅ **Job Titles**: Contact roles properly mapped
         """)
         
         # Reset option
         if st.button("🔄 Process Another File", type="secondary"):
-            for key in ['step', 'raw_data', 'transformed_data', 'cleaning_log']:
+            for key in ['step', 'raw_data', 'transformed_data', 'cleaning_log', 'contact_owner', 'account_owner']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
