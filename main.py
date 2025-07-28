@@ -127,14 +127,14 @@ class HubSpotReevoTransformer:
         
         # Field requirements from Reevo template
         self.field_requirements = {
-            'contact_owner_id': {'required': False, 'type': 'Recommended', 'description': 'Contact Owner ID (email)'},
+            'contact_owner_id': {'required': False, 'type': 'Recommended', 'description': 'Contact Owner ID (from Email)'},
             'contact_first_name': {'required': True, 'type': 'Required', 'description': 'Contact First Name'},
             'contact_last_name': {'required': True, 'type': 'Required', 'description': 'Contact Last Name'},
             'contact_primary_email': {'required': 'conditional', 'type': 'Required if no phone', 'description': 'Contact Email'},
             'contact_primary_phone_number': {'required': 'conditional', 'type': 'Required if no email', 'description': 'Contact Phone'},
             'contact_linkedin_url': {'required': False, 'type': 'Recommended', 'description': 'Contact LinkedIn URL'},
             'contact_account_role_title': {'required': False, 'type': 'Recommended', 'description': 'Contact Job Title'},
-            'account_owner_id': {'required': False, 'type': 'Recommended', 'description': 'Account Owner ID (email)'},
+            'account_owner_id': {'required': False, 'type': 'Recommended', 'description': 'Account Owner ID (from Email)'},
             'account_name': {'required': True, 'type': 'Required', 'description': 'Account Name'},
             'account_domain_name': {'required': True, 'type': 'Required', 'description': 'Account Domain'},
             'account_linkedin_url': {'required': False, 'type': 'Recommended', 'description': 'Account LinkedIn URL'}
@@ -242,7 +242,7 @@ class HubSpotReevoTransformer:
         
         return phone_selection['selected_value']
     
-    def transform_record(self, record, record_index=0, contact_owner='', account_owner=''):
+    def transform_record(self, record, record_index=0):
         """Transform a single HubSpot record with detailed tracking"""
         transformed = {}
         record_cleaning_steps = []
@@ -254,23 +254,19 @@ class HubSpotReevoTransformer:
         for header in self.reevo_template_headers:
             transformed[header] = ''
         
-        # Set owner IDs if provided (these should be email addresses)
-        if contact_owner:
-            transformed['contact_owner_id'] = contact_owner
+        # Set owner IDs automatically from Email field
+        if 'Email' in record and pd.notna(record['Email']) and str(record['Email']).strip():
+            email = str(record['Email']).strip()
+            
+            # Use the email as both contact and account owner ID
+            transformed['contact_owner_id'] = email
+            transformed['account_owner_id'] = email
+            
             self.cleaning_steps.append({
-                'field': 'Contact Owner ID',
+                'field': 'Owner ID Assignment',
                 'original': 'Empty',
-                'cleaned': contact_owner,
-                'action': 'Set default contact owner email'
-            })
-        
-        if account_owner:
-            transformed['account_owner_id'] = account_owner
-            self.cleaning_steps.append({
-                'field': 'Account Owner ID',
-                'original': 'Empty', 
-                'cleaned': account_owner,
-                'action': 'Set default account owner email'
+                'cleaned': email,
+                'action': 'Set contact_owner_id and account_owner_id from Email field'
             })
         
         # Map standard fields with cleaning tracking
@@ -360,74 +356,85 @@ def show_reevo_requirements():
             "Reevo Object": "Contact",
             "Reevo Field": "Owner ID (email)", 
             "Required?": "Recommended",
-            "Import Header": "contact_owner_id"
+            "Import Header": "contact_owner_id",
+            "Source": "From Email field"
         },
         {
             "Reevo Object": "Contact",
             "Reevo Field": "First Name",
             "Required?": "Yes", 
-            "Import Header": "contact_first_name"
+            "Import Header": "contact_first_name",
+            "Source": "From First Name field"
         },
         {
             "Reevo Object": "Contact",
             "Reevo Field": "Last Name",
             "Required?": "Yes",
-            "Import Header": "contact_last_name"
+            "Import Header": "contact_last_name",
+            "Source": "From Last Name field"
         },
         {
             "Reevo Object": "Contact", 
             "Reevo Field": "Email",
             "Required?": "Yes, if no phone #",
-            "Import Header": "contact_primary_email"
+            "Import Header": "contact_primary_email",
+            "Source": "From Email field"
         },
         {
             "Reevo Object": "Contact",
             "Reevo Field": "Phone Number", 
             "Required?": "Yes, if no email",
-            "Import Header": "contact_primary_phone_number"
+            "Import Header": "contact_primary_phone_number",
+            "Source": "Mobile → Direct → Office priority"
         },
         {
             "Reevo Object": "Contact",
             "Reevo Field": "LinkedIn URL",
             "Required?": "Recommended", 
-            "Import Header": "contact_linkedin_url"
+            "Import Header": "contact_linkedin_url",
+            "Source": "From Personal Linkedin URL field"
         },
         {
             "Reevo Object": "Contact",
             "Reevo Field": "Job Title",
             "Required?": "Recommended",
-            "Import Header": "contact_account_role_title"
+            "Import Header": "contact_account_role_title",
+            "Source": "From Job Title field"
         },
         {
             "Reevo Object": "Account",
             "Reevo Field": "Owner ID (email)",
             "Required?": "Recommended",
-            "Import Header": "account_owner_id"
+            "Import Header": "account_owner_id",
+            "Source": "From Email field"
         },
         {
             "Reevo Object": "Account", 
             "Reevo Field": "Name",
             "Required?": "Yes",
-            "Import Header": "account_name"
+            "Import Header": "account_name",
+            "Source": "From Company Name field"
         },
         {
             "Reevo Object": "Account",
             "Reevo Field": "Domain Name", 
             "Required?": "Yes",
-            "Import Header": "account_domain_name"
+            "Import Header": "account_domain_name",
+            "Source": "From Website field (cleaned)"
         },
         {
             "Reevo Object": "Account",
             "Reevo Field": "LinkedIn URL",
             "Required?": "Recommended",
-            "Import Header": "account_linkedin_url"
+            "Import Header": "account_linkedin_url",
+            "Source": "From Company Linkedin URL field"
         }
     ]
     
     requirements_df = pd.DataFrame(requirements_data)
     st.dataframe(requirements_df, use_container_width=True, hide_index=True)
     
-    st.info("💡 This tool automatically maps your HubSpot data to ALL these required Reevo fields!")
+    st.info("💡 Owner IDs are automatically set from the Email field - no manual input needed!")
 
 def show_data_cleaning_demo():
     """Show examples of data cleaning with real data"""
@@ -436,13 +443,13 @@ def show_data_cleaning_demo():
     # Example transformations
     examples = [
         {
-            "Field": "Website → Domain",
-            "Original": "ayrwellness.com",
-            "Cleaned": "ayrwellness.com",
-            "Action": "Already clean domain"
+            "Field": "Owner ID Assignment",
+            "Original": "benjamin.rogers@ayrwellness.com (Email field)",
+            "Cleaned": "benjamin.rogers@ayrwellness.com (contact_owner_id & account_owner_id)",
+            "Action": "Auto-assign email as owner ID"
         },
         {
-            "Field": "Website → Domain", 
+            "Field": "Website → Domain",
             "Original": "https://www.terrascend.com/",
             "Cleaned": "terrascend.com",
             "Action": "Remove https://, www, trailing slash"
@@ -482,6 +489,7 @@ def main():
     ### ⚡ **What You Get:**
     - **Complete data transparency** - see your raw data and all transformations
     - **Automatic field mapping** - All 11 Reevo fields mapped correctly
+    - **Automatic owner assignment** - Owner IDs automatically set from Email field
     - **Data cleaning & validation** - ensures high-quality imports
     - **Ready-to-import file** - no manual cleanup needed
     - **Full audit trail** - complete log of all changes made
@@ -504,13 +512,13 @@ def main():
         
         ---
         
-        ### **Step 2: 🗺️ Field Mapping & Owner Setup**
-        - Configure **default owner emails** for contacts and accounts (recommended)
+        ### **Step 2: 🗺️ Field Mapping Preview**
         - Review **exact field mappings** (HubSpot → All 11 Reevo fields)
+        - See **automatic owner ID assignment** from Email field
         - See **phone number priority logic** (Mobile → Direct → Office)
         - Preview **sample transformation** with your actual data
         
-        **What you'll see:** Complete field mapping table, owner setup, transformation preview
+        **What you'll see:** Complete field mapping table, transformation preview
         
         ---
         
@@ -550,17 +558,17 @@ def main():
     | Feature | Benefit |
     |---------|---------|
     | **🔄 Complete Field Coverage** | Maps to ALL 11 required Reevo fields automatically |
+    | **👤 Auto Owner Assignment** | Automatically sets owner IDs from Email field |
     | **📊 Complete Transparency** | See exactly what happens to every piece of data |
     | **✅ Quality Assurance** | Built-in validation prevents import errors |
     | **📱 Smart Phone Logic** | Automatically selects best available phone number |
-    | **🏢 Owner Management** | Assign default owner emails to all imported records |
     | **🔍 Error Detection** | Identifies and explains data issues before import |
     | **📋 Audit Trail** | Complete log of all transformations for compliance |
     | **⚡ Self-Service** | Team members can process imports independently |
     
     ### ⚠️ **Important Notes:**
     - **Column order doesn't matter** - the system finds fields by name
-    - **Handles up to 73 columns** - processes what's available, ignores the rest
+    - **Owner IDs auto-assigned** - uses Email field for both contact and account owners
     - **Maps to ALL 11 Reevo fields** - follows exact Reevo template requirements
     - **No data is stored** - all processing happens in your browser session
     - **Output is import-ready** - no template cleanup needed
@@ -573,10 +581,10 @@ def main():
     **What you need:**
     1. **HubSpot CSV export** containing your contacts and companies
     2. **5-10 minutes** depending on data size
-    3. **Owner email addresses** for default assignment (recommended)
     
     **What you'll get:**
     - Clean, validated Reevo import file with ALL 11 fields
+    - Automatic owner assignment from Email field
     - Complete transformation report
     - Step-by-step import instructions
     
@@ -621,27 +629,6 @@ def main():
     with st.sidebar.expander("🧹 Cleaning Examples"):
         show_data_cleaning_demo()
     
-    # Debug session state at the top
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🔍 Debug Info")
-    st.sidebar.write(f"Current Step: {st.session_state.step}")
-    st.sidebar.write(f"Raw Data Loaded: {st.session_state.raw_data is not None}")
-    if st.session_state.raw_data is not None:
-        st.sidebar.write(f"Data Shape: {st.session_state.raw_data.shape}")
-    
-    # Manual step controls for debugging
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🛠️ Manual Controls")
-    if st.sidebar.button("Force Go to Step 2"):
-        st.session_state.step = 2
-        st.sidebar.success("Forced to Step 2")
-        st.rerun()
-    
-    if st.sidebar.button("Reset to Step 1"):
-        st.session_state.step = 1
-        st.sidebar.success("Reset to Step 1")
-        st.rerun()
-    
     # Step 1: File Upload and Raw Data Preview
     if st.session_state.step >= 1:
         st.markdown('<div class="step-header"><h2>Step 1: 📁 Upload & Preview Raw HubSpot Data</h2></div>', unsafe_allow_html=True)
@@ -649,83 +636,22 @@ def main():
         # File upload section
         st.subheader("📤 Upload Your HubSpot Export")
         
-        # Option selection
-        upload_option = st.radio(
-            "Choose how to provide your data:",
-            ["📁 Upload my own HubSpot CSV file", "📊 Use Case Study Raw Data File"],
-            help="Select whether to upload your own file or use the provided case study data"
+        uploaded_file = st.file_uploader(
+            "Choose your HubSpot CSV export file",
+            type=['csv'],
+            help="Upload the raw HubSpot export containing up to 73 columns of contact and company data"
         )
         
         raw_df = None
         
-        if upload_option == "📁 Upload my own HubSpot CSV file":
-            uploaded_file = st.file_uploader(
-                "Choose your HubSpot CSV export file",
-                type=['csv'],
-                help="Upload the raw HubSpot export containing up to 73 columns of contact and company data"
-            )
-            
-            if uploaded_file is not None:
-                try:
-                    raw_df = pd.read_csv(uploaded_file)
-                    file_source = f"your uploaded file: **{uploaded_file.name}**"
-                    file_size = f"{uploaded_file.size / 1024:.1f} KB"
-                except Exception as e:
-                    st.error(f"❌ Error reading uploaded file: {str(e)}")
-                    return
-        
-        else:  # Use case study data
-            st.info("📊 **Using Case Study Raw Data File**: This will load the actual HubSpot export from the GitHub repository with real customer data.")
-            
-            if st.button("🚀 Load Case Study Data", type="secondary"):
-                try:
-                    # Fetch the raw_data.csv directly from GitHub repository
-                    github_url = "https://raw.githubusercontent.com/yourusername/yourrepo/main/raw_data.csv"
-                    
-                    # Try multiple possible GitHub URLs since we don't know the exact repo structure
-                    possible_urls = [
-                        "https://raw.githubusercontent.com/yourusername/yourrepo/main/raw_data.csv",
-                        "https://raw.githubusercontent.com/yourusername/yourrepo/master/raw_data.csv",
-                        # Add a direct URL if you can provide it
-                    ]
-                    
-                    raw_df = None
-                    successful_url = None
-                    
-                    # Try to fetch from GitHub
-                    try:
-                        st.info("🔄 Fetching case study data from GitHub repository...")
-                        
-                        # The actual GitHub raw URL for your repository
-                        github_raw_url = "https://raw.githubusercontent.com/aavadhan10/Case-Prompt-2-/main/raw_data.csv"
-                        
-                        # Fetch the actual raw_data.csv from your GitHub repository
-                        raw_df = pd.read_csv(github_raw_url)
-                        file_source = "**Case Study Raw Data** (fetched from GitHub: aavadhan10/Case-Prompt-2-)"
-                        file_size = f"{raw_df.memory_usage(deep=True).sum() / 1024:.1f} KB"
-                        
-                        st.success(f"✅ Successfully loaded real case study data from GitHub repository!")
-                        st.write(f"🔍 DEBUG: Loaded {len(raw_df)} rows, {len(raw_df.columns)} columns")
-                        st.write(f"🔍 DEBUG: Actual columns: {list(raw_df.columns[:8])}...")
-                        st.write(f"🔍 DEBUG: GitHub URL: {github_raw_url}")
-                        
-                        # CRITICALLY IMPORTANT: Set session state and trigger processing
-                        st.session_state.raw_data = raw_df
-                        st.write(f"🔍 DEBUG: Session state updated: {st.session_state.raw_data is not None}")
-                        
-                        # Instead of return, let raw_df be processed by the main logic below
-                        # This way it gets treated exactly like an uploaded file
-                        
-                    except Exception as e:
-                        st.error(f"❌ Error fetching from GitHub: {str(e)}")
-                        st.write(f"🔍 DEBUG: Attempted URL: https://raw.githubusercontent.com/aavadhan10/Case-Prompt-2-/main/raw_data.csv")
-                        st.info("Please upload your own HubSpot CSV file instead.")
-                        return
-                        
-                except Exception as e:
-                    st.error(f"❌ Error loading case study data: {str(e)}")
-                    st.info("Please upload your own HubSpot CSV file instead.")
-                    return
+        if uploaded_file is not None:
+            try:
+                raw_df = pd.read_csv(uploaded_file)
+                file_source = f"your uploaded file: **{uploaded_file.name}**"
+                file_size = f"{uploaded_file.size / 1024:.1f} KB"
+            except Exception as e:
+                st.error(f"❌ Error reading uploaded file: {str(e)}")
+                return
         
         # Process the data if we have it
         if raw_df is not None:
@@ -735,8 +661,6 @@ def main():
             # File upload success
             st.markdown('<div class="success-box">', unsafe_allow_html=True)
             st.success(f"✅ Successfully loaded {file_source} ({len(raw_df)} records, {len(raw_df.columns)} columns)")
-            st.write(f"🔍 DEBUG: Session state set: {st.session_state.raw_data is not None}")
-            st.write(f"🔍 DEBUG: Current step: {st.session_state.step}")
             st.markdown('</div>', unsafe_allow_html=True)
             
             # Raw data overview metrics
@@ -853,8 +777,15 @@ def main():
             else:
                 quality_successes.append("All critical fields present ✅")
             
-            # Check email/phone coverage
+            # Check email coverage
             email_coverage = (raw_df['Email'].notna().sum() / len(raw_df)) * 100 if 'Email' in raw_df.columns else 0
+            
+            if email_coverage >= 95:
+                quality_successes.append(f"Excellent email coverage: {email_coverage:.1f}% (enables auto owner assignment) ✅")
+            elif email_coverage >= 80:
+                quality_issues.append(f"Good email coverage: {email_coverage:.1f}% ⚠️")
+            else:
+                quality_issues.append(f"Low email coverage: {email_coverage:.1f}% ❌")
             
             phone_coverage = 0
             available_phone_fields = [field for field in transformer.phone_fields if field in raw_df.columns]
@@ -916,15 +847,9 @@ def main():
             
             # Action button
             st.markdown("---")
-            if st.button("✨ Proceed to Field Mapping & Owner Setup", type="primary", use_container_width=True):
-                # Debug information
-                st.write(f"DEBUG: Current step: {st.session_state.step}")
-                st.write(f"DEBUG: Raw data loaded: {st.session_state.raw_data is not None}")
-                if st.session_state.raw_data is not None:
-                    st.write(f"DEBUG: Raw data shape: {st.session_state.raw_data.shape}")
-                
+            if st.button("✨ Proceed to Field Mapping Preview", type="primary", use_container_width=True):
                 st.session_state.step = 2
-                st.success("✅ Moving to Step 2: Field Mapping & Owner Setup")
+                st.success("✅ Moving to Step 2: Field Mapping Preview")
                 st.rerun()
                 
         else:
@@ -952,85 +877,51 @@ def main():
                     st.write(f"• {col}")
                 
                 st.info("💡 Column order doesn't matter - the system will find the right fields automatically!")
+                st.info("👤 Owner IDs will be automatically assigned from the Email field!")
 
     # Step 2: Field Mapping
     if st.session_state.step >= 2 and st.session_state.raw_data is not None:
-        st.markdown('<div class="step-header"><h2>Step 2: 🗺️ Field Mapping & Owner Setup</h2></div>', unsafe_allow_html=True)
-        
-        # Debug information
-        st.write(f"🔍 DEBUG: Successfully reached Step 2!")
-        st.write(f"🔍 DEBUG: Current step: {st.session_state.step}")
-        st.write(f"🔍 DEBUG: Raw data shape: {st.session_state.raw_data.shape}")
+        st.markdown('<div class="step-header"><h2>Step 2: 🗺️ Field Mapping Preview</h2></div>', unsafe_allow_html=True)
         
         raw_df = st.session_state.raw_data
         
-        # Owner Configuration Section
-        st.subheader("👤 Owner Assignment Configuration")
-        st.write("Set default owner **EMAIL ADDRESSES** for imported contacts and accounts (recommended):")
-        
-        st.info("💡 **Important**: Enter the **email addresses** of Reevo users who should own these records. These must be valid email addresses of existing Reevo users.")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            contact_owner = st.text_input(
-                "Default Contact Owner Email",
-                placeholder="john.doe@company.com",
-                help="Enter the email address of the Reevo user who will own all imported contacts"
-            )
-        with col2:
-            account_owner = st.text_input(
-                "Default Account Owner Email", 
-                placeholder="sales.manager@company.com",
-                help="Enter the email address of the Reevo user who will own all imported accounts"
-            )
-        
-        # Store owner settings in session state
-        st.session_state.contact_owner = contact_owner
-        st.session_state.account_owner = account_owner
-        
-        if contact_owner or account_owner:
-            st.markdown('<div class="success-box">', unsafe_allow_html=True)
-            owners_set = []
-            if contact_owner:
-                owners_set.append(f"Contact Owner: {contact_owner}")
-            if account_owner:
-                owners_set.append(f"Account Owner: {account_owner}")
-            st.success(f"✅ Owner settings configured: {' | '.join(owners_set)}")
-            st.markdown('</div>', unsafe_allow_html=True)
-        
         # Show the COMPLETE mapping for ALL 11 Reevo fields
         st.subheader("📋 Complete HubSpot → Reevo Field Mapping")
-        st.write("**Complete mapping to ALL 11 required Reevo fields:**")
+        st.write("**Complete automatic mapping to ALL 11 required Reevo fields:**")
         
         st.markdown('<div class="requirements-table">', unsafe_allow_html=True)
-        st.write("**🎯 This tool maps to ALL 11 Reevo import fields:**")
-        
-        # Get current owner settings
-        contact_owner = st.session_state.get('contact_owner', '')
-        account_owner = st.session_state.get('account_owner', '')
+        st.write("**🎯 This tool automatically maps to ALL 11 Reevo import fields:**")
         
         mapping_data = []
         
-        # Add contact owner field first
+        # Add contact owner field first - automatically from Email
+        email_available = 'Email' in raw_df.columns and raw_df['Email'].notna().sum() > 0
+        if email_available:
+            sample_email = raw_df['Email'].dropna().iloc[0] if len(raw_df['Email'].dropna()) > 0 else "No email found"
+            email_count = raw_df['Email'].notna().sum()
+        else:
+            sample_email = "⚠️ Email field not found"
+            email_count = 0
+            
         mapping_data.append({
-            "HubSpot Field": "Contact Owner Email (entered above)",
+            "HubSpot Field": "Email → Contact Owner ID",
             "→": "→",
             "Reevo Field": "contact_owner_id",
             "Requirement": "Recommended",
-            "Available": "✅" if contact_owner else "❌",
-            "Sample Data": contact_owner if contact_owner else "No email entered",
-            "Records": f"All {len(raw_df)} records" if contact_owner else "Will be empty"
+            "Available": "✅" if email_available else "❌",
+            "Sample Data": sample_email,
+            "Records": f"{email_count}/{len(raw_df)}"
         })
         
-        # Add account owner field
+        # Add account owner field - automatically from Email
         mapping_data.append({
-            "HubSpot Field": "Account Owner Email (entered above)",
+            "HubSpot Field": "Email → Account Owner ID",
             "→": "→", 
             "Reevo Field": "account_owner_id",
             "Requirement": "Recommended",
-            "Available": "✅" if account_owner else "❌",
-            "Sample Data": account_owner if account_owner else "No email entered",
-            "Records": f"All {len(raw_df)} records" if account_owner else "Will be empty"
+            "Available": "✅" if email_available else "❌",
+            "Sample Data": sample_email,
+            "Records": f"{email_count}/{len(raw_df)}"
         })
         
         # Add mapped fields from HubSpot data
@@ -1084,6 +975,17 @@ def main():
         st.dataframe(mapping_df, use_container_width=True, hide_index=True)
         st.markdown('</div>', unsafe_allow_html=True)
         
+        # Owner assignment explanation
+        st.subheader("👤 Automatic Owner Assignment")
+        st.info("""
+        **🎯 Owner IDs are automatically assigned from the Email field:**
+        
+        • **contact_owner_id** = Email field value
+        • **account_owner_id** = Email field value  
+        
+        This ensures every imported record has an owner without manual input!
+        """)
+        
         # Phone number logic explanation
         st.subheader("📱 Phone Number Selection Logic")
         
@@ -1119,9 +1021,7 @@ def main():
             st.write("**See how the first record will be transformed to ALL 11 Reevo fields:**")
             
             sample_record = raw_df.iloc[0].to_dict()
-            contact_owner = st.session_state.get('contact_owner', '')
-            account_owner = st.session_state.get('account_owner', '')
-            transformed_sample, cleaning_steps = transformer.transform_record(sample_record, 0, contact_owner, account_owner)
+            transformed_sample, cleaning_steps = transformer.transform_record(sample_record, 0)
             
             col1, col2 = st.columns(2)
             
@@ -1129,7 +1029,7 @@ def main():
                 st.markdown('<div class="raw-data-section">', unsafe_allow_html=True)
                 st.write("**📥 Original HubSpot Data:**")
                 original_data = {}
-                for field in list(transformer.hubspot_to_reevo_mapping.keys()) + transformer.phone_fields:
+                for field in list(transformer.hubspot_to_reevo_mapping.keys()) + transformer.phone_fields + ['Email']:
                     if field in sample_record:
                         original_data[field] = sample_record[field] if pd.notna(sample_record[field]) else "N/A"
                 
@@ -1161,18 +1061,6 @@ def main():
             st.session_state.step = 3
             st.rerun()
     
-    # Debug: Show why Step 2 might not be showing
-    elif st.session_state.step >= 2:
-        st.error("🚨 DEBUG: Step 2 condition failed!")
-        st.write(f"• Current step: {st.session_state.step}")
-        st.write(f"• Raw data exists: {st.session_state.raw_data is not None}")
-        if st.session_state.raw_data is not None:
-            st.write(f"• Raw data type: {type(st.session_state.raw_data)}")
-            st.write(f"• Raw data shape: {st.session_state.raw_data.shape}")
-        else:
-            st.write("• Raw data is None - this is likely the issue!")
-            st.info("💡 Try reloading the case study data or uploading your own file.")
-    
     # Step 3: Data Cleaning & Transformation
     if st.session_state.step >= 3 and st.session_state.raw_data is not None:
         st.markdown('<div class="step-header"><h2>Step 3: 🧹 Data Cleaning & Transformation</h2></div>', unsafe_allow_html=True)
@@ -1180,7 +1068,7 @@ def main():
         raw_df = st.session_state.raw_data
         
         st.write("🔄 **Processing all records through the complete cleaning and transformation pipeline...**")
-        st.info("📋 **Transforming to ALL 11 Reevo fields**: contact_owner_id, contact_first_name, contact_last_name, contact_primary_email, contact_primary_phone_number, contact_linkedin_url, contact_account_role_title, account_owner_id, account_name, account_domain_name, account_linkedin_url")
+        st.info("📋 **Transforming to ALL 11 Reevo fields with automatic owner assignment from Email field**")
         
         # Progress tracking
         progress_bar = st.progress(0)
@@ -1190,13 +1078,9 @@ def main():
         all_cleaning_steps = []
         total_records = len(raw_df)
         
-        # Get owner settings from session state
-        contact_owner = st.session_state.get('contact_owner', '')
-        account_owner = st.session_state.get('account_owner', '')
-        
         # Process each record
         for i, (_, record) in enumerate(raw_df.iterrows()):
-            transformed_record, cleaning_steps = transformer.transform_record(record.to_dict(), i, contact_owner, account_owner)
+            transformed_record, cleaning_steps = transformer.transform_record(record.to_dict(), i)
             transformed_records.append(transformed_record)
             
             # Store cleaning steps with record info
@@ -1227,9 +1111,9 @@ def main():
         with col2:
             st.metric("Reevo Fields Created", len(transformer.reevo_template_headers))
         with col3:
-            # Count records with data in key fields
-            filled_contacts = (transformed_df['contact_first_name'] != '').sum()
-            st.metric("Valid Contacts", filled_contacts)
+            # Count records with owner IDs assigned
+            owner_assigned = (transformed_df['contact_owner_id'] != '').sum()
+            st.metric("Owner IDs Assigned", owner_assigned)
         with col4:
             filled_accounts = (transformed_df['account_name'] != '').sum()
             st.metric("Valid Accounts", filled_accounts)
@@ -1238,7 +1122,7 @@ def main():
         
         # Show the COMPLETE transformed data with ALL 11 fields
         st.subheader("📋 Complete Transformed Data Preview")
-        st.write("**All records transformed to ALL 11 Reevo fields:**")
+        st.write("**All records transformed to ALL 11 Reevo fields with automatic owner assignment:**")
         st.info(f"📊 Showing first 10 records with all {len(transformer.reevo_template_headers)} Reevo fields. Use scroll bars to see all data.")
         
         # Display sample of complete transformed data
@@ -1511,7 +1395,7 @@ def main():
         
         # Final success message
         st.markdown('<div class="final-data-section">', unsafe_allow_html=True)
-        st.success(f"🎉 **Complete Reevo import file ready!** {len(final_df)} validated records with ALL 11 Reevo fields prepared for import.")
+        st.success(f"🎉 **Complete Reevo import file ready!** {len(final_df)} validated records with ALL 11 Reevo fields and automatic owner assignment.")
         st.markdown('</div>', unsafe_allow_html=True)
         
         # Final statistics
@@ -1524,7 +1408,8 @@ def main():
             success_rate = (len(final_df) / len(st.session_state.raw_data)) * 100
             st.metric("Success Rate", f"{success_rate:.1f}%")
         with col3:
-            st.metric("Reevo Fields", len(transformer.reevo_template_headers))
+            owner_assigned = (final_df['contact_owner_id'] != '').sum()
+            st.metric("Owner IDs Assigned", owner_assigned)
         with col4:
             file_size = len(final_df) * len(transformer.reevo_template_headers) * 25
             st.metric("File Size", f"{file_size / 1024:.1f} KB")
@@ -1601,7 +1486,7 @@ def main():
             file_name=filename,
             mime="text/csv",
             type="primary",
-            help="Download the complete validated file with ALL 11 Reevo fields ready for import"
+            help="Download the complete validated file with ALL 11 Reevo fields and automatic owner assignment"
         )
         
         # Complete process summary
@@ -1625,21 +1510,21 @@ def main():
                 ],
                 "Fields": [
                     len(st.session_state.raw_data.columns),
-                    "Mapping configured",
+                    "Auto-mapping configured",
                     len(transformer.reevo_template_headers),
                     len(transformer.reevo_template_headers),
                     len(transformer.reevo_template_headers)
                 ],
                 "Key Actions": [
                     f"Loaded {len(st.session_state.raw_data.columns)} columns of raw data",
-                    f"Mapped to ALL {len(transformer.reevo_template_headers)} Reevo fields",
-                    f"Applied {len(cleaning_log)} cleaning operations", 
+                    f"Auto-mapped to ALL {len(transformer.reevo_template_headers)} Reevo fields",
+                    f"Applied {len(cleaning_log)} cleaning operations + owner assignment", 
                     f"Validated against ALL Reevo requirements",
                     "Generated complete import-ready file"
                 ],
                 "Data Quality": [
                     "Raw export format",
-                    "ALL 11 fields aligned",
+                    "ALL 11 fields aligned + owners assigned",
                     "Data cleaned & standardized",
                     "Requirements validated",
                     "✅ Complete import ready"
@@ -1653,7 +1538,7 @@ def main():
         st.subheader("🚀 Next Steps: Import to Reevo")
         
         st.markdown("""
-        **Your complete file with ALL 11 Reevo fields is now ready for import! Follow these steps:**
+        **Your complete file with ALL 11 Reevo fields and automatic owner assignment is now ready! Follow these steps:**
         
         1. **📥 Download** the file using the button above
         2. **🔐 Log into** your Reevo admin panel  
@@ -1666,10 +1551,10 @@ def main():
         
         **🔥 Key Benefits of This Complete File:**
         - ✅ **Perfect Template Match**: Uses exact Reevo field structure with ALL 11 fields
+        - ✅ **Automatic Owner Assignment**: Owner IDs set from Email field automatically
         - ✅ **Complete Data Coverage**: Contact AND Account data fully populated
         - ✅ **Data Cleaned**: All transformations applied automatically  
         - ✅ **Fully Validated**: Only quality records included
-        - ✅ **Owner Assignment**: Default owners set where configured
         - ✅ **No Manual Work**: Ready for direct import, no cleanup needed
         - ✅ **LinkedIn URLs**: Personal and company LinkedIn URLs included
         - ✅ **Job Titles**: Contact roles properly mapped
@@ -1677,7 +1562,7 @@ def main():
         
         # Reset option
         if st.button("🔄 Process Another File", type="secondary"):
-            for key in ['step', 'raw_data', 'transformed_data', 'cleaning_log', 'contact_owner', 'account_owner', 'case_study_loaded']:
+            for key in ['step', 'raw_data', 'transformed_data', 'cleaning_log']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
