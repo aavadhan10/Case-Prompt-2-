@@ -500,21 +500,65 @@ def main():
         
         # File upload section
         st.subheader("📤 Upload Your HubSpot Export")
-        uploaded_file = st.file_uploader(
-            "Choose your HubSpot CSV export file",
-            type=['csv'],
-            help="Upload the raw HubSpot export containing up to 73 columns of contact and company data"
+        
+        # Option selection
+        upload_option = st.radio(
+            "Choose how to provide your data:",
+            ["📁 Upload my own HubSpot CSV file", "📊 Use Case Study Raw Data File"],
+            help="Select whether to upload your own file or use the provided case study data"
         )
         
-        if uploaded_file is not None:
-            try:
-                raw_df = pd.read_csv(uploaded_file)
-                st.session_state.raw_data = raw_df
-                
-                # File upload success
-                st.markdown('<div class="success-box">', unsafe_allow_html=True)
-                st.success(f"✅ Successfully uploaded: **{uploaded_file.name}** ({len(raw_df)} records, {len(raw_df.columns)} columns)")
-                st.markdown('</div>', unsafe_allow_html=True)
+        raw_df = None
+        
+        if upload_option == "📁 Upload my own HubSpot CSV file":
+            uploaded_file = st.file_uploader(
+                "Choose your HubSpot CSV export file",
+                type=['csv'],
+                help="Upload the raw HubSpot export containing up to 73 columns of contact and company data"
+            )
+            
+            if uploaded_file is not None:
+                try:
+                    raw_df = pd.read_csv(uploaded_file)
+                    file_source = f"your uploaded file: **{uploaded_file.name}**"
+                    file_size = f"{uploaded_file.size / 1024:.1f} KB"
+                except Exception as e:
+                    st.error(f"❌ Error reading uploaded file: {str(e)}")
+                    return
+        
+        else:  # Use case study data
+            st.info("📊 **Using Case Study Raw Data File**: This will load the actual HubSpot export from the case study with real customer data.")
+            
+            if st.button("🚀 Load Case Study Data", type="secondary"):
+                try:
+                    # Try to load the case study data file
+                    case_study_file_path = "Case Study Product Operations  2025.07.12  raw_data.csv"
+                    
+                    # Check if file exists using the file system API if available
+                    try:
+                        # This will work if the file is available in the app's file system
+                        raw_df = pd.read_csv(case_study_file_path)
+                        file_source = "**Case Study Raw Data File** (Case Study Product Operations 2025.07.12 raw_data.csv)"
+                        file_size = f"{raw_df.memory_usage(deep=True).sum() / 1024:.1f} KB"
+                    except:
+                        # Fallback: Create sample data structure if file not available
+                        st.warning("⚠️ Case Study Raw Data File not found. Please upload your own HubSpot CSV file instead.")
+                        st.info("💡 **To use case study data**: Place the 'Case Study Product Operations  2025.07.12  raw_data.csv' file in the same directory as this application.")
+                        return
+                        
+                except Exception as e:
+                    st.error(f"❌ Error loading case study data: {str(e)}")
+                    st.info("Please upload your own HubSpot CSV file instead.")
+                    return
+        
+        # Process the data if we have it
+        if raw_df is not None:
+            st.session_state.raw_data = raw_df
+            
+            # File upload success
+            st.markdown('<div class="success-box">', unsafe_allow_html=True)
+            st.success(f"✅ Successfully loaded {file_source} ({len(raw_df)} records, {len(raw_df.columns)} columns)")
+            st.markdown('</div>', unsafe_allow_html=True)
                 
                 # Raw data overview metrics
                 st.subheader("📊 File Overview")
@@ -527,7 +571,7 @@ def main():
                     memory_usage = raw_df.memory_usage(deep=True).sum() / 1024
                     st.metric("Memory Usage", f"{memory_usage:.1f} KB")
                 with col4:
-                    st.metric("File Size", f"{uploaded_file.size / 1024:.1f} KB")
+                    st.metric("File Size", file_size)
                 
                 # Complete Raw Data Preview Section
                 st.markdown('<div class="raw-data-section">', unsafe_allow_html=True)
