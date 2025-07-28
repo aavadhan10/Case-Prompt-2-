@@ -538,12 +538,12 @@ def main():
                     try:
                         # This will work if the file is available in the app's file system
                         raw_df = pd.read_csv(case_study_file_path)
-                        file_source = "**Case Study Raw Data File** (Case Study Product Operations 2025.07.12 raw_data.csv)"
+                        file_source = "**Case Study Raw Data File** (raw_data.csv)"
                         file_size = f"{raw_df.memory_usage(deep=True).sum() / 1024:.1f} KB"
                     except:
                         # Fallback: Create sample data structure if file not available
                         st.warning("⚠️ Case Study Raw Data File not found. Please upload your own HubSpot CSV file instead.")
-                        st.info("💡 **To use case study data**: Place the '[Case Study] Product Operations - 2025.07.12 - raw_data.csv' file in the same directory as this application.")
+                        st.info("💡 **To use case study data**: Place the 'raw_data' file in the same directory as this application.")
                         return
                         
                 except Exception as e:
