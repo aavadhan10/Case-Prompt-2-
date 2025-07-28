@@ -213,7 +213,7 @@ class HubSpotReevoTransformer:
         
         return phone_selection['selected_value']
     
-    def transform_record(self, record, record_index=0):
+    def transform_record(self, record, record_index=0, contact_owner='', account_owner=''):
         """Transform a single HubSpot record with detailed tracking"""
         transformed = {}
         record_cleaning_steps = []
@@ -224,6 +224,25 @@ class HubSpotReevoTransformer:
         # Initialize all Reevo fields
         for header in self.reevo_template_headers:
             transformed[header] = ''
+        
+        # Set owner IDs if provided
+        if contact_owner:
+            transformed['contact_owner_id'] = contact_owner
+            self.cleaning_steps.append({
+                'field': 'Contact Owner',
+                'original': 'Empty',
+                'cleaned': contact_owner,
+                'action': 'Set default contact owner'
+            })
+        
+        if account_owner:
+            transformed['account_owner_id'] = account_owner
+            self.cleaning_steps.append({
+                'field': 'Account Owner',
+                'original': 'Empty', 
+                'cleaned': account_owner,
+                'action': 'Set default account owner'
+            })
         
         # Map standard fields with cleaning tracking
         for hubspot_field, reevo_field in self.hubspot_to_reevo_mapping.items():
@@ -329,10 +348,119 @@ def show_data_cleaning_demo():
 def main():
     st.markdown('<h1 class="main-header">🔄 HubSpot to Reevo Data Importer</h1>', unsafe_allow_html=True)
     
+    # Process Overview Section
     st.markdown("""
-    **Complete Data Transformation Pipeline** - Transform HubSpot contact exports into Reevo-ready format.
-    See every step of the cleaning, transformation, and validation process with your actual data.
+    ## 📋 What This Tool Does
+    
+    This application transforms your **HubSpot contact export** into a **Reevo-ready import file** through a guided 5-step process. 
+    It handles all the complex data cleaning, field mapping, and validation automatically while showing you exactly what's happening at each step.
+    
+    ### 🎯 **Who This Is For:**
+    - **Reevo team members** processing customer imports
+    - **Customers** migrating from HubSpot to Reevo  
+    - **Anyone** needing to convert HubSpot data to Reevo format
+    
+    ### ⚡ **What You Get:**
+    - **Complete data transparency** - see your raw data and all transformations
+    - **Automatic field mapping** - HubSpot fields → Reevo fields  
+    - **Data cleaning & validation** - ensures high-quality imports
+    - **Ready-to-import file** - no manual cleanup needed
+    - **Full audit trail** - complete log of all changes made
     """)
+    
+    # Process Flow Overview
+    with st.expander("🔍 **Process Overview - What Happens in Each Step**", expanded=False):
+        st.markdown("""
+        ### **Step 1: 📁 Upload & Preview Raw Data**
+        - Upload your HubSpot CSV export file
+        - See **complete raw data preview** with all records and columns
+        - Get **data quality assessment** and field analysis
+        - Understand what data you're starting with
+        
+        **What you'll see:** Full dataset preview, column information, quality metrics
+        
+        ---
+        
+        ### **Step 2: 🗺️ Field Mapping & Owner Setup**
+        - Configure **default owners** for contacts and accounts (optional)
+        - Review **exact field mappings** (HubSpot → Reevo)
+        - See **phone number priority logic** (Mobile → Direct → Office)
+        - Preview **sample transformation** with your actual data
+        
+        **What you'll see:** Field mapping table, owner setup, transformation preview
+        
+        ---
+        
+        ### **Step 3: 🧹 Data Cleaning & Transformation**
+        - Watch **real-time processing** of all your records
+        - See **detailed cleaning log** of every operation performed
+        - Compare **before/after data** side by side
+        - Get **field population statistics** showing data completeness
+        
+        **What happens:** Website → domain extraction, phone number selection, owner assignment, data standardization
+        
+        ---
+        
+        ### **Step 4: ✅ Data Validation**
+        - **Validate every record** against Reevo import requirements
+        - See **per-record validation status** with specific error messages
+        - Get **detailed error analysis** grouped by issue type
+        - Review **sample valid records** ready for import
+        
+        **Quality checks:** Required fields, email format, phone availability, LinkedIn URLs
+        
+        ---
+        
+        ### **Step 5: 📥 Generate Import File**
+        - View **complete final dataset** (all records, not just preview)
+        - See **comprehensive statistics** including success rates
+        - **Download ready-to-import file** for Reevo
+        - Get **step-by-step import instructions**
+        
+        **Final output:** Clean CSV file that imports directly into Reevo with no manual work
+        """)
+    
+    # Key Benefits Section
+    st.markdown("""
+    ### 🚀 **Key Benefits:**
+    
+    | Feature | Benefit |
+    |---------|---------|
+    | **🔄 Automatic Processing** | No manual field mapping or data cleanup required |
+    | **📊 Complete Transparency** | See exactly what happens to every piece of data |
+    | **✅ Quality Assurance** | Built-in validation prevents import errors |
+    | **📱 Smart Phone Logic** | Automatically selects best available phone number |
+    | **🏢 Owner Management** | Assign default owners to all imported records |
+    | **🔍 Error Detection** | Identifies and explains data issues before import |
+    | **📋 Audit Trail** | Complete log of all transformations for compliance |
+    | **⚡ Self-Service** | Team members can process imports independently |
+    
+    ### ⚠️ **Important Notes:**
+    - **Column order doesn't matter** - the system finds fields by name
+    - **Handles up to 73 columns** - processes what's available, ignores the rest
+    - **Only imports specific fields** - follows exact Reevo template requirements
+    - **No data is stored** - all processing happens in your browser session
+    - **Output is import-ready** - no template cleanup needed
+    """)
+    
+    # Getting Started Section
+    st.markdown("""
+    ### 🎬 **Ready to Get Started?**
+    
+    **What you need:**
+    1. **HubSpot CSV export** containing your contacts and companies
+    2. **5-10 minutes** depending on data size
+    3. **Owner email addresses** (optional but recommended)
+    
+    **What you'll get:**
+    - Clean, validated Reevo import file
+    - Complete transformation report
+    - Step-by-step import instructions
+    
+    👇 **Upload your HubSpot file below to begin!**
+    """)
+    
+    st.markdown("---")  # Visual separator
     
     # Initialize session state
     if 'step' not in st.session_state:
@@ -366,12 +494,14 @@ def main():
     with st.sidebar.expander("🧹 Cleaning Examples"):
         show_data_cleaning_demo()
     
-    # Step 1: Raw Data Analysis
+    # Step 1: File Upload and Raw Data Preview
     if st.session_state.step >= 1:
-        st.markdown('<div class="step-header"><h2>Step 1: 📁 Raw HubSpot Data Analysis</h2></div>', unsafe_allow_html=True)
+        st.markdown('<div class="step-header"><h2>Step 1: 📁 Upload & Preview Raw HubSpot Data</h2></div>', unsafe_allow_html=True)
         
+        # File upload section
+        st.subheader("📤 Upload Your HubSpot Export")
         uploaded_file = st.file_uploader(
-            "Upload your HubSpot CSV export",
+            "Choose your HubSpot CSV export file",
             type=['csv'],
             help="Upload the raw HubSpot export containing up to 73 columns of contact and company data"
         )
@@ -381,10 +511,13 @@ def main():
                 raw_df = pd.read_csv(uploaded_file)
                 st.session_state.raw_data = raw_df
                 
-                # Raw data overview
-                st.markdown('<div class="raw-data-section">', unsafe_allow_html=True)
-                st.subheader("📊 Raw Data Overview")
+                # File upload success
+                st.markdown('<div class="success-box">', unsafe_allow_html=True)
+                st.success(f"✅ Successfully uploaded: **{uploaded_file.name}** ({len(raw_df)} records, {len(raw_df.columns)} columns)")
+                st.markdown('</div>', unsafe_allow_html=True)
                 
+                # Raw data overview metrics
+                st.subheader("📊 File Overview")
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("Total Records", len(raw_df))
@@ -396,98 +529,249 @@ def main():
                 with col4:
                     st.metric("File Size", f"{uploaded_file.size / 1024:.1f} KB")
                 
+                # Complete Raw Data Preview Section
+                st.markdown('<div class="raw-data-section">', unsafe_allow_html=True)
+                st.subheader("🔍 Complete Raw Data Preview")
+                st.write(f"**Full view of your uploaded file** - All {len(raw_df)} records with {len(raw_df.columns)} columns:")
+                
+                # Show complete raw data with scrolling
+                st.dataframe(
+                    raw_df, 
+                    use_container_width=True,
+                    height=500,  # Scrollable height
+                    hide_index=False  # Show row numbers
+                )
+                
+                # Column information
+                st.subheader("📋 Column Information")
+                st.write("**All available columns in your HubSpot export:**")
+                
+                # Create columns info table
+                col_info_data = []
+                for i, col_name in enumerate(raw_df.columns, 1):
+                    non_null_count = raw_df[col_name].notna().sum()
+                    null_count = len(raw_df) - non_null_count
+                    data_type = str(raw_df[col_name].dtype)
+                    
+                    # Get sample non-null values
+                    sample_values = raw_df[col_name].dropna().head(2).tolist()
+                    sample_str = " | ".join([str(x)[:30] + "..." if len(str(x)) > 30 else str(x) for x in sample_values])
+                    if not sample_str:
+                        sample_str = "All null values"
+                    
+                    col_info_data.append({
+                        "#": i,
+                        "Column Name": col_name,
+                        "Data Type": data_type,
+                        "Non-null": f"{non_null_count}/{len(raw_df)}",
+                        "Fill Rate": f"{(non_null_count/len(raw_df)*100):.1f}%",
+                        "Sample Values": sample_str
+                    })
+                
+                col_info_df = pd.DataFrame(col_info_data)
+                st.dataframe(col_info_df, use_container_width=True, hide_index=True)
+                
                 st.markdown('</div>', unsafe_allow_html=True)
                 
-                # Show sample raw data
-                st.subheader("🔍 Raw Data Sample")
-                st.write("**First 3 records from your HubSpot export:**")
+                # Key fields analysis
+                st.subheader("🎯 Key Fields Analysis")
+                st.write("**Analysis of fields that will be used for Reevo import:**")
                 
-                # Show key fields only for readability
-                key_fields = ['Profile ID', 'First Name', 'Last Name', 'Email', 'Mobile', 'Direct', 
-                             'Job Title', 'Company Name', 'Website', 'Company Linkedin URL']
-                available_key_fields = [field for field in key_fields if field in raw_df.columns]
+                # Analyze key fields for import
+                key_fields = list(transformer.hubspot_to_reevo_mapping.keys()) + transformer.phone_fields
                 
-                sample_data = raw_df[available_key_fields].head(3)
-                st.dataframe(sample_data, use_container_width=True)
-                
-                # Data quality analysis
-                st.subheader("📈 Data Quality Analysis")
-                
-                # Analyze completeness of key fields
-                quality_data = []
-                target_fields = list(transformer.hubspot_to_reevo_mapping.keys()) + transformer.phone_fields
-                
-                for field in target_fields:
+                field_analysis_data = []
+                for field in key_fields:
                     if field in raw_df.columns:
                         filled_count = raw_df[field].notna().sum()
                         empty_count = len(raw_df) - filled_count
                         fill_rate = (filled_count / len(raw_df)) * 100
                         
-                        quality_data.append({
-                            "Field": field,
-                            "Filled": filled_count,
-                            "Empty": empty_count,
+                        # Sample data
+                        samples = raw_df[field].dropna().head(3).tolist()
+                        sample_str = " | ".join([str(x)[:40] + "..." if len(str(x)) > 40 else str(x) for x in samples])
+                        
+                        status_icon = "✅" if fill_rate >= 80 else "⚠️" if fill_rate >= 50 else "❌"
+                        
+                        field_analysis_data.append({
+                            "Field Name": field,
+                            "Status": f"{status_icon} Available",
+                            "Filled Records": f"{filled_count}/{len(raw_df)}",
                             "Fill Rate": f"{fill_rate:.1f}%",
-                            "Status": "✅ Good" if fill_rate >= 80 else "⚠️ Needs Review" if fill_rate >= 50 else "❌ Poor"
+                            "Sample Data": sample_str or "No data",
+                            "Usage": "Will be mapped to Reevo" if field in transformer.hubspot_to_reevo_mapping else "Phone priority selection"
                         })
                     else:
-                        quality_data.append({
-                            "Field": field,
-                            "Filled": 0,
-                            "Empty": len(raw_df),
-                            "Fill Rate": "0.0%",
-                            "Status": "❌ Missing"
+                        field_analysis_data.append({
+                            "Field Name": field,
+                            "Status": "❌ Missing",
+                            "Filled Records": "0/0",
+                            "Fill Rate": "0.0%", 
+                            "Sample Data": "Field not found in export",
+                            "Usage": "Will be empty in Reevo import"
                         })
                 
-                quality_df = pd.DataFrame(quality_data)
-                st.dataframe(quality_df, use_container_width=True, hide_index=True)
+                analysis_df = pd.DataFrame(field_analysis_data)
+                st.dataframe(analysis_df, use_container_width=True, hide_index=True)
+                
+                # Data quality assessment
+                st.subheader("🔬 Data Quality Assessment")
                 
                 # Identify potential issues
-                issues_found = []
+                quality_issues = []
+                quality_successes = []
                 
                 # Check for missing required fields
-                missing_fields = [field for field in transformer.hubspot_to_reevo_mapping.keys() 
-                                if field not in raw_df.columns]
-                if missing_fields:
-                    issues_found.append(f"Missing fields: {', '.join(missing_fields)}")
+                required_hubspot_fields = ['First Name', 'Last Name', 'Company Name', 'Website']
+                missing_required = [field for field in required_hubspot_fields if field not in raw_df.columns]
+                
+                if missing_required:
+                    quality_issues.append(f"Missing critical fields: {', '.join(missing_required)}")
+                else:
+                    quality_successes.append("All critical fields present ✅")
                 
                 # Check email/phone coverage
                 email_coverage = (raw_df['Email'].notna().sum() / len(raw_df)) * 100 if 'Email' in raw_df.columns else 0
+                
                 phone_coverage = 0
-                for phone_field in transformer.phone_fields:
-                    if phone_field in raw_df.columns:
-                        phone_coverage = max(phone_coverage, (raw_df[phone_field].notna().sum() / len(raw_df)) * 100)
+                available_phone_fields = [field for field in transformer.phone_fields if field in raw_df.columns]
+                if available_phone_fields:
+                    phone_data = raw_df[available_phone_fields].notna().any(axis=1)
+                    phone_coverage = (phone_data.sum() / len(raw_df)) * 100
                 
-                contact_coverage = len(raw_df[(raw_df['Email'].notna()) | 
-                                            (raw_df[transformer.phone_fields].notna().any(axis=1))]) / len(raw_df) * 100
+                contact_info_coverage = 0
+                if 'Email' in raw_df.columns and available_phone_fields:
+                    has_contact_info = raw_df['Email'].notna() | raw_df[available_phone_fields].notna().any(axis=1)
+                    contact_info_coverage = (has_contact_info.sum() / len(raw_df)) * 100
                 
-                if contact_coverage < 90:
-                    issues_found.append(f"Only {contact_coverage:.1f}% of records have email OR phone")
-                
-                if issues_found:
-                    st.markdown('<div class="warning-box">', unsafe_allow_html=True)
-                    st.warning("⚠️ **Data Quality Issues Found:**")
-                    for issue in issues_found:
-                        st.write(f"• {issue}")
-                    st.write("These issues will be addressed in the cleaning process.")
-                    st.markdown('</div>', unsafe_allow_html=True)
+                if contact_info_coverage >= 95:
+                    quality_successes.append(f"Excellent contact info coverage: {contact_info_coverage:.1f}% ✅")
+                elif contact_info_coverage >= 80:
+                    quality_issues.append(f"Good contact info coverage: {contact_info_coverage:.1f}% ⚠️")
                 else:
-                    st.markdown('<div class="success-box">', unsafe_allow_html=True)
-                    st.success("✅ **Data quality looks good!** Ready for transformation.")
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    quality_issues.append(f"Low contact info coverage: {contact_info_coverage:.1f}% ❌")
                 
-                if st.button("Proceed to Field Mapping", type="primary"):
+                # Check for duplicates
+                if 'Email' in raw_df.columns:
+                    email_duplicates = raw_df['Email'].duplicated().sum()
+                    if email_duplicates > 0:
+                        quality_issues.append(f"Found {email_duplicates} duplicate email addresses")
+                    else:
+                        quality_successes.append("No duplicate emails found ✅")
+                
+                # Display quality assessment
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if quality_successes:
+                        st.markdown('<div class="success-box">', unsafe_allow_html=True)
+                        st.success("✅ **Data Quality Strengths:**")
+                        for success in quality_successes:
+                            st.write(f"• {success}")
+                        st.markdown('</div>', unsafe_allow_html=True)
+                
+                with col2:
+                    if quality_issues:
+                        st.markdown('<div class="warning-box">', unsafe_allow_html=True)
+                        st.warning("⚠️ **Areas for Attention:**")
+                        for issue in quality_issues:
+                            st.write(f"• {issue}")
+                        st.write("These will be addressed during processing.")
+                        st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Sample records preview
+                st.subheader("👁️ Sample Records Preview")
+                st.write("**First 5 records showing key fields:**")
+                
+                # Show key fields for preview
+                preview_fields = ['First Name', 'Last Name', 'Email', 'Mobile', 'Job Title', 'Company Name', 'Website']
+                available_preview_fields = [field for field in preview_fields if field in raw_df.columns]
+                
+                if available_preview_fields:
+                    preview_data = raw_df[available_preview_fields].head(5)
+                    st.dataframe(preview_data, use_container_width=True)
+                
+                # Action button
+                st.markdown("---")
+                if st.button("✨ Proceed to Field Mapping & Owner Setup", type="primary", use_container_width=True):
                     st.session_state.step = 2
                     st.rerun()
                     
             except Exception as e:
-                st.error(f"Error reading file: {str(e)}")
+                st.markdown('<div class="error-box">', unsafe_allow_html=True)
+                st.error(f"❌ Error reading file: {str(e)}")
+                st.write("**Common solutions:**")
+                st.write("• Ensure your file is in CSV format")
+                st.write("• Check that the file is not corrupted")
+                st.write("• Verify the file encoding is UTF-8")
+                st.write("• Try re-exporting from HubSpot")
+                st.markdown('</div>', unsafe_allow_html=True)
+        
+        else:
+            # Show instructions when no file is uploaded
+            st.info("👆 **Please upload your HubSpot CSV export file to begin the import process.**")
+            
+            st.subheader("📋 What to Expect:")
+            st.write("Once you upload your file, you'll see:")
+            st.write("• **Complete raw data preview** - Every record and column")
+            st.write("• **Column analysis** - Data types and fill rates") 
+            st.write("• **Key fields assessment** - Which fields will be used for import")
+            st.write("• **Data quality check** - Issues and recommendations")
+            st.write("• **Sample records** - Preview of your actual data")
+            
+            # Show expected file format
+            with st.expander("📄 Expected File Format", expanded=False):
+                st.write("**Your HubSpot CSV should contain columns like:**")
+                expected_cols = [
+                    "First Name", "Last Name", "Email", "Mobile", "Direct", "Office",
+                    "Personal Linkedin URL", "Job Title", "Company Name", "Website", 
+                    "Company Linkedin URL", "...and up to 73 total columns"
+                ]
+                
+                for col in expected_cols:
+                    st.write(f"• {col}")
+                
+                st.info("💡 Column order doesn't matter - the system will find the right fields automatically!")
+    
+    # Rest of the steps remain the same...
     
     # Step 2: Field Mapping
     if st.session_state.step >= 2 and st.session_state.raw_data is not None:
-        st.markdown('<div class="step-header"><h2>Step 2: 🗺️ Field Mapping Analysis</h2></div>', unsafe_allow_html=True)
+        st.markdown('<div class="step-header"><h2>Step 2: 🗺️ Field Mapping & Owner Setup</h2></div>', unsafe_allow_html=True)
         
         raw_df = st.session_state.raw_data
+        
+        # Owner Configuration Section
+        st.subheader("👤 Owner Assignment Configuration")
+        st.write("Set default owners for imported contacts and accounts (optional but recommended):")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            contact_owner = st.text_input(
+                "Default Contact Owner Email",
+                placeholder="john.doe@company.com",
+                help="This email will be assigned as the owner for all imported contacts"
+            )
+        with col2:
+            account_owner = st.text_input(
+                "Default Account Owner Email", 
+                placeholder="sales.manager@company.com",
+                help="This email will be assigned as the owner for all imported accounts"
+            )
+        
+        # Store owner settings in session state
+        st.session_state.contact_owner = contact_owner
+        st.session_state.account_owner = account_owner
+        
+        if contact_owner or account_owner:
+            st.markdown('<div class="success-box">', unsafe_allow_html=True)
+            owners_set = []
+            if contact_owner:
+                owners_set.append(f"Contact Owner: {contact_owner}")
+            if account_owner:
+                owners_set.append(f"Account Owner: {account_owner}")
+            st.success(f"✅ Owner settings configured: {' | '.join(owners_set)}")
+            st.markdown('</div>', unsafe_allow_html=True)
         
         # Show the exact mapping
         st.subheader("📋 HubSpot → Reevo Field Mapping")
@@ -551,7 +835,9 @@ def main():
             st.subheader("🔍 Sample Transformation Preview")
             
             sample_record = raw_df.iloc[0].to_dict()
-            transformed_sample, cleaning_steps = transformer.transform_record(sample_record)
+            contact_owner = st.session_state.get('contact_owner', '')
+            account_owner = st.session_state.get('account_owner', '')
+            transformed_sample, cleaning_steps = transformer.transform_record(sample_record, 0, contact_owner, account_owner)
             
             col1, col2 = st.columns(2)
             
@@ -606,9 +892,13 @@ def main():
         all_cleaning_steps = []
         total_records = len(raw_df)
         
+        # Get owner settings from session state
+        contact_owner = st.session_state.get('contact_owner', '')
+        account_owner = st.session_state.get('account_owner', '')
+        
         # Process each record
         for i, (_, record) in enumerate(raw_df.iterrows()):
-            transformed_record, cleaning_steps = transformer.transform_record(record.to_dict(), i)
+            transformed_record, cleaning_steps = transformer.transform_record(record.to_dict(), i, contact_owner, account_owner)
             transformed_records.append(transformed_record)
             
             # Store cleaning steps with record info
@@ -926,12 +1216,57 @@ def main():
             file_size = len(final_df) * len(transformer.reevo_template_headers) * 25
             st.metric("File Size", f"{file_size / 1024:.1f} KB")
         
-        # Show final data preview
-        st.subheader("📋 Final Import File Preview")
-        st.write("**This is exactly what will be imported into Reevo:**")
+        # Show final data preview - COMPLETE FILE, not just sample
+        st.subheader("📋 Complete Final Import File")
+        st.write("**This is the COMPLETE file that will be imported into Reevo:**")
         
-        # Show all columns but limit rows
-        st.dataframe(final_df.head(10), use_container_width=True)
+        # Show record count info
+        st.info(f"📊 Showing all {len(final_df)} records ready for import (use scroll bar to see all data)")
+        
+        # Display the FULL dataset with scrolling
+        st.dataframe(
+            final_df, 
+            use_container_width=True, 
+            height=600,  # Increased height to show more records
+            hide_index=False  # Show row numbers
+        )
+        
+        # Show column summary
+        st.subheader("📊 Complete File Summary")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Field Population Summary:**")
+            field_summary = []
+            for col in final_df.columns:
+                filled = (final_df[col] != '').sum()
+                field_summary.append({
+                    "Field": col,
+                    "Filled": f"{filled}/{len(final_df)}",
+                    "Rate": f"{(filled/len(final_df)*100):.1f}%"
+                })
+            
+            summary_df = pd.DataFrame(field_summary)
+            st.dataframe(summary_df, use_container_width=True, hide_index=True)
+        
+        with col2:
+            st.write("**Record Quality Check:**")
+            quality_metrics = {
+                "Total Records": len(final_df),
+                "Complete Contacts": (final_df['contact_first_name'] != '').sum(),
+                "Complete Accounts": (final_df['account_name'] != '').sum(),
+                "Records with Email": (final_df['contact_primary_email'] != '').sum(),
+                "Records with Phone": (final_df['contact_primary_phone_number'] != '').sum(),
+                "Records with Contact Owner": (final_df['contact_owner_id'] != '').sum(),
+                "Records with Account Owner": (final_df['account_owner_id'] != '').sum()
+            }
+            
+            for metric, value in quality_metrics.items():
+                st.write(f"• **{metric}**: {value}")
+        
+        # File download section
+        st.subheader("📥 Download Complete Import File")
         
         # Create download
         csv_buffer = io.StringIO()
