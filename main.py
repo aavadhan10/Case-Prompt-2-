@@ -543,7 +543,7 @@ def main():
                     except:
                         # Fallback: Create sample data structure if file not available
                         st.warning("⚠️ Case Study Raw Data File not found. Please upload your own HubSpot CSV file instead.")
-                        st.info("💡 **To use case study data**: Place the 'Case Study Product Operations  2025.07.12  raw_data.csv' file in the same directory as this application.")
+                        st.info("💡 **To use case study data**: Place the '[Case Study] Product Operations - 2025.07.12 - raw_data.csv' file in the same directory as this application.")
                         return
                         
                 except Exception as e:
