@@ -1005,30 +1005,35 @@ def main():
         st.markdown('<div class="requirements-table">', unsafe_allow_html=True)
         st.write("**🎯 This tool maps to ALL 11 Reevo import fields:**")
         
+        # Get current owner settings
+        contact_owner = st.session_state.get('contact_owner', '')
+        account_owner = st.session_state.get('account_owner', '')
+        
         mapping_data = []
         
-        # Add owner fields first
+        # Add contact owner field first
         mapping_data.append({
-            "HubSpot Field": "Default Contact Owner",
+            "HubSpot Field": "Default Contact Owner (Email)",
             "→": "→",
             "Reevo Field": "contact_owner_id",
             "Requirement": "Recommended",
-            "Available": "✅" if contact_owner else "⚠️ Not Set",
+            "Available": "✅ Set" if contact_owner else "⚠️ Not Set",
             "Sample Data": contact_owner if contact_owner else "Enter email above",
-            "Records": f"All {len(raw_df)} records" if contact_owner else "0 records"
+            "Records": f"All {len(raw_df)} records" if contact_owner else "Will be empty"
         })
         
+        # Add account owner field
         mapping_data.append({
-            "HubSpot Field": "Default Account Owner",
+            "HubSpot Field": "Default Account Owner (Email)",
             "→": "→", 
             "Reevo Field": "account_owner_id",
             "Requirement": "Recommended",
-            "Available": "✅" if account_owner else "⚠️ Not Set",
+            "Available": "✅ Set" if account_owner else "⚠️ Not Set",
             "Sample Data": account_owner if account_owner else "Enter email above",
-            "Records": f"All {len(raw_df)} records" if account_owner else "0 records"
+            "Records": f"All {len(raw_df)} records" if account_owner else "Will be empty"
         })
         
-        # Add mapped fields
+        # Add mapped fields from HubSpot data
         for hubspot_field, reevo_field in transformer.hubspot_to_reevo_mapping.items():
             is_available = hubspot_field in raw_df.columns
             requirement = transformer.field_requirements[reevo_field]['type']
@@ -1066,7 +1071,7 @@ def main():
                         break
         
         mapping_data.append({
-            "HubSpot Field": "Mobile/Direct/Office",
+            "HubSpot Field": "Mobile/Direct/Office (Priority Selection)",
             "→": "→",
             "Reevo Field": "contact_primary_phone_number",
             "Requirement": "Required if no email",
@@ -1672,7 +1677,7 @@ def main():
         
         # Reset option
         if st.button("🔄 Process Another File", type="secondary"):
-            for key in ['step', 'raw_data', 'transformed_data', 'cleaning_log', 'contact_owner', 'account_owner', 'github_data_loaded']:
+            for key in ['step', 'raw_data', 'transformed_data', 'cleaning_log', 'contact_owner', 'account_owner', 'case_study_loaded']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
