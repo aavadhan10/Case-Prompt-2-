@@ -1672,7 +1672,7 @@ def main():
         
         # Reset option
         if st.button("🔄 Process Another File", type="secondary"):
-            for key in ['step', 'raw_data', 'transformed_data', 'cleaning_log', 'contact_owner', 'account_owner']:
+            for key in ['step', 'raw_data', 'transformed_data', 'cleaning_log', 'contact_owner', 'account_owner', 'github_data_loaded']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
