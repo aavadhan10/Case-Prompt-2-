@@ -1080,23 +1080,23 @@ def main():
         
         # Add contact owner field first
         mapping_data.append({
-            "HubSpot Field": "👤 Contact Owner (User Input)",
+            "HubSpot Field": "Contact Owner Email (entered above)",
             "→": "→",
             "Reevo Field": "contact_owner_id",
-            "Requirement": "Optional",
-            "Available": "✅" if contact_owner else "➖",
-            "Sample Data": contact_owner if contact_owner else "Optional - enter above",
+            "Requirement": "Recommended",
+            "Available": "✅" if contact_owner else "❌",
+            "Sample Data": contact_owner if contact_owner else "No email entered",
             "Records": f"All {len(raw_df)} records" if contact_owner else "Will be empty"
         })
         
         # Add account owner field
         mapping_data.append({
-            "HubSpot Field": "👤 Account Owner (User Input)",
+            "HubSpot Field": "Account Owner Email (entered above)",
             "→": "→", 
             "Reevo Field": "account_owner_id",
-            "Requirement": "Optional",
-            "Available": "✅" if account_owner else "➖",
-            "Sample Data": account_owner if account_owner else "Optional - enter above",
+            "Requirement": "Recommended",
+            "Available": "✅" if account_owner else "❌",
+            "Sample Data": account_owner if account_owner else "No email entered",
             "Records": f"All {len(raw_df)} records" if account_owner else "Will be empty"
         })
         
