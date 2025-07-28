@@ -532,7 +532,7 @@ def main():
             if st.button("🚀 Load Case Study Data", type="secondary"):
                 try:
                     # Try to load the case study data file
-                    case_study_file_path = "Case Study Product Operations  2025.07.12  raw_data.csv"
+                    case_study_file_path = "raw_data.csv"
                     
                     # Check if file exists using the file system API if available
                     try:
